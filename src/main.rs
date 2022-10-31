@@ -1,4 +1,5 @@
 use image::{DynamicImage, GenericImageView, Rgba};
+use rand::Rng;
 use std::time::Instant;
 
 mod main_window;
@@ -18,7 +19,10 @@ fn main() {
     println!("{:?}", deltas);
     println!("Comparisons: {}", comparisons);
     println!("Elapsed: {:?}", elapsed);
-    println!("Rate: {}/ms", (comparisons as u128) / elapsed.as_millis());
+    println!(
+        "Rate: {} pixels/ms",
+        (comparisons as u128) / elapsed.as_millis()
+    );
 
     // UI run loop; doesn't exit.
     // main_window::run();
@@ -38,7 +42,7 @@ fn main() {
 
 */
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct ImageDeltas {
     candidate: usize,
     current: usize,
@@ -100,10 +104,7 @@ impl ImageSet {
         }
     }
 
-    fn delta(a: Rgba<u8>, b: Rgba<u8>) -> usize {
-        // convert to RGB without the alpha channel so that we can compare
-        // the visible values
-
+    fn pixel_delta(a: Rgba<u8>, b: Rgba<u8>) -> usize {
         let mut delta = 0;
 
         delta += Self::channel_delta(a[0], b[0]) as usize;
@@ -116,143 +117,35 @@ impl ImageSet {
         let mut deltas = ImageDeltas::new();
 
         deltas.candidate = std::iter::zip(self.source.pixels(), self.candidate.pixels())
-            .map(|(a, b)| Self::delta(a.2, b.2))
+            .map(|(a, b)| Self::pixel_delta(a.2, b.2)) // 0 and 1 are coordinates; 2 is the pixel
             .sum();
         deltas.current = std::iter::zip(self.source.pixels(), self.current.pixels())
-            .map(|(a, b)| Self::delta(a.2, b.2))
+            .map(|(a, b)| Self::pixel_delta(a.2, b.2))
             .sum();
 
         deltas
     }
 }
 
-#[derive(Debug)]
-pub struct Region {
-    start_x: usize,
-    start_y: usize,
-    end_x: usize,
-    end_y: usize,
-    index_x: usize,
-    index_y: usize,
+pub struct PointSelector {
+    width: u32,
+    height: u32,
 }
 
-impl Region {
-    pub fn new(start_x: usize, start_y: usize, end_x: usize, end_y: usize) -> Self {
-        let index_x = start_x;
-        let index_y = start_y;
-
+impl PointSelector {
+    pub fn new(image_set: &ImageSet) -> Self {
         Self {
-            start_x,
-            start_y,
-            end_x,
-            end_y,
-            index_x,
-            index_y,
+            width: image_set.width(),
+            height: image_set.height(),
         }
     }
 
-    pub fn width(&self) -> usize {
-        (self.end_x - self.start_x) + 1
-    }
+    pub fn point(&self) -> (u32, u32) {
+        let mut rng = rand::thread_rng();
 
-    pub fn height(&self) -> usize {
-        (self.end_y - self.start_y) + 1
-    }
+        let x = rng.gen_range(0, self.width);
+        let y = rng.gen_range(0, self.height);
 
-    pub fn len(&self) -> usize {
-        self.width() * self.height()
-    }
-}
-
-#[derive(PartialEq, Eq, Debug)]
-pub struct Point {
-    pub x: usize,
-    pub y: usize,
-}
-
-impl Point {
-    // translate an X,Y coordinate into a position index for an image with a given width
-    pub fn index(&self, width: usize) -> usize {
-        (self.y * width) + self.x
-    }
-}
-
-impl Iterator for Region {
-    type Item = Point;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // bounds checking
-        if self.index_y > self.end_y {
-            return None;
-        }
-
-        // already computed in the previous pass
-        let output = Point {
-            x: self.index_x,
-            y: self.index_y,
-        };
-
-        // check to see if we head to the next row
-        if self.index_x == self.end_x {
-            self.index_x = self.start_x;
-            self.index_y += 1;
-        } else {
-            self.index_x += 1;
-        }
-
-        Some(output)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_point_index() {
-        let expected = vec![
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-            24,
-        ];
-
-        let mut collected = vec![];
-
-        let dimension = 5;
-
-        for y in 0..dimension {
-            for x in 0..dimension {
-                let p = Point { x, y };
-                collected.push(p.index(dimension));
-            }
-        }
-
-        assert_eq!(collected, expected);
-    }
-
-    #[test]
-    fn test_region_iterator() {
-        // full region
-        let mut r1 = Region::new(0, 0, 4, 4);
-        for y in 0..5 {
-            for x in 0..5 {
-                assert_eq!(r1.next(), Some(Point { x, y }));
-            }
-        }
-
-        assert_eq!(r1.next(), None);
-    }
-
-    #[test]
-    fn test_region_dimensions() {
-        let r1 = Region::new(0, 0, 4, 4);
-        assert_eq!(r1.len(), 25);
-        assert_eq!(r1.width(), 5);
-        assert_eq!(r1.height(), 5);
-
-        // this is a one pixel region at 5,5
-        let r2 = Region::new(5, 5, 5, 5);
-        assert_eq!(r2.len(), 1);
-        assert_eq!(r2.width(), 1);
-        assert_eq!(r2.height(), 1);
+        (x, y)
     }
 }

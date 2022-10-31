@@ -1,8 +1,11 @@
 use eframe::{egui, App, CreationContext, NativeOptions};
 
 pub fn run() {
-    let mut options = NativeOptions::default();
-    options.follow_system_theme = true;
+    let options = NativeOptions {
+        follow_system_theme: true,
+        ..Default::default()
+    };
+
     eframe::run_native(
         "Sediment",
         options,
@@ -51,7 +54,7 @@ impl MainWindow {
     pub fn window_title(&self) -> String {
         match &self.src_file_name {
             Some(sfn) => format!("Sediment: {}", sfn),
-            None => format!("Sediment"),
+            None => "Sediment".to_owned(),
         }
     }
 }
