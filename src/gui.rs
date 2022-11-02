@@ -1,11 +1,9 @@
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::Receiver;
 
 use eframe::{egui, epaint::ColorImage, App, CreationContext, NativeOptions};
 use image::DynamicImage;
 
-use crate::grinder::GrinderInput;
-
-pub fn run(rx: Receiver<MainWindowInput>, tx: Sender<GrinderInput>) {
+pub fn run(rx: Receiver<MainWindowInput>) {
     let options = NativeOptions {
         follow_system_theme: true,
         ..Default::default()
@@ -14,7 +12,7 @@ pub fn run(rx: Receiver<MainWindowInput>, tx: Sender<GrinderInput>) {
     eframe::run_native(
         "Sediment",
         options,
-        Box::new(|cc| Box::new(MainWindow::new(cc, rx, tx))),
+        Box::new(|cc| Box::new(MainWindow::new(cc, rx))),
     );
 }
 
@@ -28,9 +26,6 @@ pub enum MainWindowInput {
 }
 
 pub struct MainWindow {
-    running: bool,
-    ready: bool,
-    tx: Sender<GrinderInput>,
     rx: Receiver<MainWindowInput>,
     preview_texture: Option<egui::TextureHandle>,
     preview_image: ColorImage,
@@ -38,45 +33,13 @@ pub struct MainWindow {
 }
 
 impl MainWindow {
-    pub fn new(
-        _creation_context: &CreationContext<'_>,
-        rx: Receiver<MainWindowInput>,
-        tx: Sender<GrinderInput>,
-    ) -> Self {
+    pub fn new(_creation_context: &CreationContext<'_>, rx: Receiver<MainWindowInput>) -> Self {
         Self {
-            running: false,
-            ready: false,
-            tx,
             rx,
             preview_image: egui::ColorImage::example(),
             preview_texture: None,
             stats_line: String::new(),
         }
-    }
-
-    pub fn is_ready(&self) -> bool {
-        self.ready
-    }
-
-    pub fn run_pause_button_label(&self) -> &str {
-        match self.running {
-            true => "Pause",
-            false => "Run",
-        }
-    }
-
-    pub fn run_pause_button_clicked(&mut self) {
-        self.running = !self.running;
-        if self.running {
-            self.tx.send(GrinderInput::Play).unwrap();
-        } else {
-            self.tx.send(GrinderInput::Pause).unwrap();
-        }
-    }
-
-    pub fn open_button_clicked(&mut self) {
-        self.ready = true;
-        self.running = false;
     }
 
     pub fn window_title(&self) -> String {
@@ -97,7 +60,7 @@ impl MainWindow {
 
 impl App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        ctx.request_repaint(); // continuous repainting
 
         // handle any messages that may have come in from the grinder
         if let Ok(input) = self.rx.try_recv() {
@@ -124,23 +87,7 @@ impl App for MainWindow {
         // bottom panel
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 10.0;
-
-                // title and open button
-                if ui.button("Open").clicked() {
-                    self.open_button_clicked();
-                };
-                // toggle whether the other buttons are enabled
-                ui.set_enabled(self.is_ready());
-                if ui.button("Reset").clicked() {
-                    println!("Reset: Clicked!");
-                };
-                if ui.button(self.run_pause_button_label()).clicked() {
-                    self.run_pause_button_clicked();
-                };
-                if ui.button("Save").clicked() {
-                    println!("Save: Clicked!");
-                };
+                ui.spacing_mut().item_spacing.y = 10.0;
                 ui.label(&self.stats_line);
             });
         });

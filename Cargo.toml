@@ -11,3 +11,4 @@ imageproc = "0"
 eframe = "0"
 egui_extras = { version = "0", features = ["image"] }
 rand = "0"
+clap = { version = "4", features = ["derive"] }

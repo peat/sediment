@@ -1,42 +1,30 @@
-use std::sync::mpsc::{Receiver, Sender};
+use std::sync::mpsc::Sender;
 
 use crate::gui::MainWindowInput;
-use crate::SImage;
+use crate::{Config, SImage};
 use image::Rgba;
 use imageproc::{drawing::Canvas, point::Point};
 
 use rand::seq::SliceRandom;
 use rand::Rng;
 
-pub enum GrinderInput {
-    Pause,
-    Play,
-    Reset,
-}
-
 pub struct Grinder {
     reference: SImage,
     current: SImage,
-    radius: u32,
-    attempts_at_radius: f32,
-    successes_at_radius: f32,
+    config: Config,
     tx: Sender<MainWindowInput>,
-    rx: Receiver<GrinderInput>,
 }
 
 impl Grinder {
-    pub fn new(rx: Receiver<GrinderInput>, tx: Sender<MainWindowInput>, path: &str) -> Self {
-        let reference = SImage::open(path).unwrap();
+    pub fn new(tx: Sender<MainWindowInput>, config: Config) -> Self {
+        let reference = SImage::open(&config.input).unwrap();
         let width = reference.width();
         let height = reference.height();
 
         Self {
             reference,
             current: SImage::new(width, height),
-            radius: 500,
-            attempts_at_radius: 0.0,
-            successes_at_radius: 0.0,
-            rx,
+            config,
             tx,
         }
     }
@@ -44,19 +32,14 @@ impl Grinder {
     pub fn run(&mut self) {
         let mut total_attempts: usize = 0;
         let mut total_successes: usize = 0;
+
+        let mut attempts_at_radius: usize = 0;
+        let mut successes_at_radius: usize = 0;
         loop {
             // TODO: base radius on the local contrast? High contrast -> smaller triangles
             // TODO: check local difference meets threshold before attempting to draw?
             // TODO: check that difference improvement is significant enough to warrant replacement?
             // TODO: evaluate difference based on larger window size?
-
-            if let Ok(input) = self.rx.try_recv() {
-                match input {
-                    GrinderInput::Pause => println!("Pausing Grinder!"),
-                    GrinderInput::Play => println!("Playing Grinder!"),
-                    GrinderInput::Reset => println!("Resetting Grinder!"),
-                }
-            }
 
             total_attempts += 1;
 
@@ -67,28 +50,31 @@ impl Grinder {
 
                 self.tx
                     .send(MainWindowInput::Stats {
-                        radius: self.radius,
+                        radius: self.config.radius,
                         attempts: total_attempts,
                         successes: total_successes,
                     })
                     .unwrap();
             }
 
-            self.attempts_at_radius += 1.0;
+            attempts_at_radius += 1;
 
-            let success_ratio = self.successes_at_radius / self.attempts_at_radius;
-            if self.attempts_at_radius > 50.0 {
-                if (success_ratio < 0.2) || (self.attempts_at_radius > 5000.0) {
+            // make sure we have enough attempts at that size to start adjusting the radius
+            if attempts_at_radius > 25 {
+                let success_ratio = (successes_at_radius as f32) / (attempts_at_radius as f32);
+                if (success_ratio < self.config.radius_success_threshold)
+                    || (attempts_at_radius > self.config.radius_attempt_limit)
+                {
                     // step down radius
-                    self.radius -= 1;
+                    self.config.radius -= 1;
 
                     // reset successes and attempts
-                    self.attempts_at_radius = 0.0;
-                    self.successes_at_radius = 0.0;
+                    attempts_at_radius = 0;
+                    successes_at_radius = 0;
 
                     // if radius is 2, quit
-                    if self.radius < 2 {
-                        self.current.save("output.png");
+                    if self.config.radius < 1 {
+                        self.current.save(&self.config.output);
                         return;
                     }
                 }
@@ -97,7 +83,7 @@ impl Grinder {
             let ps = PointSelector::new(&self.reference);
             let (center_x, center_y) = ps.point();
 
-            let region = Region::new(center_x, center_y, self.radius);
+            let region = Region::new(center_x, center_y, self.config.radius);
             let t1 = Triangle::from(&region);
 
             let polypoints = t1.imageproc_points();
@@ -118,7 +104,7 @@ impl Grinder {
 
             if candidate_delta < current_delta {
                 self.current = candidate;
-                self.successes_at_radius += 1.0;
+                successes_at_radius += 1;
                 total_successes += 1;
             }
         }
