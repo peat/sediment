@@ -1,6 +1,7 @@
 use image::{DynamicImage, GenericImageView, Rgba};
 
-use crate::Region;
+// TODO: Gross, reorganize me
+use crate::grinder::Region;
 
 pub struct SImage {
     pub img: DynamicImage,

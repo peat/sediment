@@ -9,4 +9,5 @@ edition = "2021"
 image = "0"
 imageproc = "0"
 eframe = "0"
+egui_extras = { version = "0", features = ["image"] }
 rand = "0"
