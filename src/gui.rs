@@ -1,9 +1,11 @@
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 
 use eframe::{egui, epaint::ColorImage, App, CreationContext, NativeOptions};
 use image::DynamicImage;
 
-pub fn run(rx: Receiver<MainWindowInput>) {
+use crate::grinder::GrinderInput;
+
+pub fn run(rx: Receiver<MainWindowInput>, tx: Sender<GrinderInput>) {
     let options = NativeOptions {
         follow_system_theme: true,
         ..Default::default()
@@ -12,31 +14,43 @@ pub fn run(rx: Receiver<MainWindowInput>) {
     eframe::run_native(
         "Sediment",
         options,
-        Box::new(|cc| Box::new(MainWindow::new(cc, rx))),
+        Box::new(|cc| Box::new(MainWindow::new(cc, rx, tx))),
     );
 }
 
-// TODO: send stats!
 pub enum MainWindowInput {
     Preview(image::DynamicImage),
+    Stats {
+        radius: u32,
+        attempts: usize,
+        successes: usize,
+    },
 }
 
 pub struct MainWindow {
     running: bool,
     ready: bool,
+    tx: Sender<GrinderInput>,
     rx: Receiver<MainWindowInput>,
     preview_texture: Option<egui::TextureHandle>,
     preview_image: ColorImage,
+    stats_line: String,
 }
 
 impl MainWindow {
-    pub fn new(_creation_context: &CreationContext<'_>, rx: Receiver<MainWindowInput>) -> Self {
+    pub fn new(
+        _creation_context: &CreationContext<'_>,
+        rx: Receiver<MainWindowInput>,
+        tx: Sender<GrinderInput>,
+    ) -> Self {
         Self {
             running: false,
             ready: false,
+            tx,
             rx,
             preview_image: egui::ColorImage::example(),
             preview_texture: None,
+            stats_line: String::new(),
         }
     }
 
@@ -53,6 +67,11 @@ impl MainWindow {
 
     pub fn run_pause_button_clicked(&mut self) {
         self.running = !self.running;
+        if self.running {
+            self.tx.send(GrinderInput::Play).unwrap();
+        } else {
+            self.tx.send(GrinderInput::Pause).unwrap();
+        }
     }
 
     pub fn open_button_clicked(&mut self) {
@@ -84,6 +103,16 @@ impl App for MainWindow {
         if let Ok(input) = self.rx.try_recv() {
             match input {
                 MainWindowInput::Preview(new_preview) => self.handle_new_preview(new_preview),
+                MainWindowInput::Stats {
+                    radius,
+                    attempts,
+                    successes,
+                } => {
+                    self.stats_line = format!(
+                        "radius: {}, attempts: {}, successes: {}",
+                        radius, attempts, successes
+                    )
+                }
             }
         }
 
@@ -112,7 +141,7 @@ impl App for MainWindow {
                 if ui.button("Save").clicked() {
                     println!("Save: Clicked!");
                 };
-                ui.label("show stats here");
+                ui.label(&self.stats_line);
             });
         });
 

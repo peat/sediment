@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Receiver, Sender};
 
 use crate::gui::MainWindowInput;
 use crate::SImage;
@@ -8,6 +8,12 @@ use imageproc::{drawing::Canvas, point::Point};
 use rand::seq::SliceRandom;
 use rand::Rng;
 
+pub enum GrinderInput {
+    Pause,
+    Play,
+    Reset,
+}
+
 pub struct Grinder {
     reference: SImage,
     current: SImage,
@@ -15,10 +21,11 @@ pub struct Grinder {
     attempts_at_radius: f32,
     successes_at_radius: f32,
     tx: Sender<MainWindowInput>,
+    rx: Receiver<GrinderInput>,
 }
 
 impl Grinder {
-    pub fn new(tx: Sender<MainWindowInput>, path: &str) -> Self {
+    pub fn new(rx: Receiver<GrinderInput>, tx: Sender<MainWindowInput>, path: &str) -> Self {
         let reference = SImage::open(path).unwrap();
         let width = reference.width();
         let height = reference.height();
@@ -29,17 +36,27 @@ impl Grinder {
             radius: 500,
             attempts_at_radius: 0.0,
             successes_at_radius: 0.0,
+            rx,
             tx,
         }
     }
 
     pub fn run(&mut self) {
         let mut total_attempts: usize = 0;
+        let mut total_successes: usize = 0;
         loop {
             // TODO: base radius on the local contrast? High contrast -> smaller triangles
             // TODO: check local difference meets threshold before attempting to draw?
             // TODO: check that difference improvement is significant enough to warrant replacement?
             // TODO: evaluate difference based on larger window size?
+
+            if let Ok(input) = self.rx.try_recv() {
+                match input {
+                    GrinderInput::Pause => println!("Pausing Grinder!"),
+                    GrinderInput::Play => println!("Playing Grinder!"),
+                    GrinderInput::Reset => println!("Resetting Grinder!"),
+                }
+            }
 
             total_attempts += 1;
 
@@ -47,27 +64,30 @@ impl Grinder {
                 self.tx
                     .send(MainWindowInput::Preview(self.current.img.clone()))
                     .unwrap();
+
+                self.tx
+                    .send(MainWindowInput::Stats {
+                        radius: self.radius,
+                        attempts: total_attempts,
+                        successes: total_successes,
+                    })
+                    .unwrap();
             }
 
             self.attempts_at_radius += 1.0;
 
             let success_ratio = self.successes_at_radius / self.attempts_at_radius;
-            println!(
-                "{} of {} ({}) at {}px",
-                self.successes_at_radius, self.attempts_at_radius, success_ratio, self.radius
-            );
-
-            if self.attempts_at_radius > 10.0 {
-                if (success_ratio < 0.2) || (self.attempts_at_radius > 2000.0) {
+            if self.attempts_at_radius > 50.0 {
+                if (success_ratio < 0.2) || (self.attempts_at_radius > 5000.0) {
                     // step down radius
-                    self.radius -= 5;
+                    self.radius -= 1;
 
                     // reset successes and attempts
                     self.attempts_at_radius = 0.0;
                     self.successes_at_radius = 0.0;
 
-                    // if radius is 5, quit
-                    if self.radius < 5 {
+                    // if radius is 2, quit
+                    if self.radius < 2 {
                         self.current.save("output.png");
                         return;
                     }
@@ -99,6 +119,7 @@ impl Grinder {
             if candidate_delta < current_delta {
                 self.current = candidate;
                 self.successes_at_radius += 1.0;
+                total_successes += 1;
             }
         }
     }
