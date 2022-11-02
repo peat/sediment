@@ -18,11 +18,7 @@ pub fn run(rx: Receiver<MainWindowInput>) {
 
 pub enum MainWindowInput {
     Preview(image::DynamicImage),
-    Stats {
-        radius: u32,
-        attempts: usize,
-        successes: usize,
-    },
+    Stats(crate::grinder::Stats),
 }
 
 pub struct MainWindow {
@@ -66,14 +62,10 @@ impl App for MainWindow {
         if let Ok(input) = self.rx.try_recv() {
             match input {
                 MainWindowInput::Preview(new_preview) => self.handle_new_preview(new_preview),
-                MainWindowInput::Stats {
-                    radius,
-                    attempts,
-                    successes,
-                } => {
+                MainWindowInput::Stats(s) => {
                     self.stats_line = format!(
                         "radius: {}, attempts: {}, successes: {}",
-                        radius, attempts, successes
+                        s.radius, s.total_attempts, s.total_successes
                     )
                 }
             }

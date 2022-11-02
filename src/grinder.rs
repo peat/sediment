@@ -8,6 +8,16 @@ use imageproc::{drawing::Canvas, point::Point};
 use rand::seq::SliceRandom;
 use rand::Rng;
 
+#[derive(Debug)]
+pub struct Stats {
+    pub total_attempts: usize,
+    pub total_successes: usize,
+    pub radius_attempts: usize,
+    pub radius_successes: usize,
+    pub radius: usize,
+    pub delta: usize,
+}
+
 pub struct Grinder {
     reference: SImage,
     current: SImage,
@@ -43,17 +53,20 @@ impl Grinder {
 
             total_attempts += 1;
 
-            if total_attempts % 25 == 0 {
+            if total_attempts % 100 == 0 {
                 self.tx
                     .send(MainWindowInput::Preview(self.current.img.clone()))
                     .unwrap();
 
                 self.tx
-                    .send(MainWindowInput::Stats {
-                        radius: self.config.radius,
-                        attempts: total_attempts,
-                        successes: total_successes,
-                    })
+                    .send(MainWindowInput::Stats(Stats {
+                        total_attempts,
+                        total_successes,
+                        radius: self.config.radius as usize,
+                        radius_attempts: attempts_at_radius,
+                        radius_successes: successes_at_radius,
+                        delta: self.reference.delta(&self.current.img),
+                    }))
                     .unwrap();
             }
 

@@ -56,16 +56,7 @@ fn main() {
     } else {
         loop {
             match main_window_rx.recv() {
-                Ok(gui::MainWindowInput::Stats {
-                    radius,
-                    attempts,
-                    successes,
-                }) => {
-                    println!(
-                        "radius: {}, attempts: {}, successes: {}",
-                        radius, attempts, successes
-                    );
-                }
+                Ok(gui::MainWindowInput::Stats(stats)) => println!("{:?}", stats),
                 Ok(_) => continue,
                 Err(_) => return,
             }
