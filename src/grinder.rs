@@ -36,6 +36,11 @@ impl Grinder {
     pub fn run(&mut self) {
         let mut total_attempts: usize = 0;
         loop {
+            // TODO: base radius on the local contrast? High contrast -> smaller triangles
+            // TODO: check local difference meets threshold before attempting to draw?
+            // TODO: check that difference improvement is significant enough to warrant replacement?
+            // TODO: evaluate difference based on larger window size?
+
             total_attempts += 1;
 
             if total_attempts % 25 == 0 {
