@@ -26,6 +26,10 @@ pub struct Config {
     #[arg(short, long)]
     gui: bool,
 
+    /// Use circles instead of triangles
+    #[arg(short, long)]
+    circles: bool,
+
     /// Maximum radius of the shapes to be placed
     #[arg(short, long, default_value_t = 100)]
     radius: u32,

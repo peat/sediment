@@ -12,6 +12,7 @@ use rand::Rng;
 pub struct Stats {
     pub total_attempts: usize,
     pub total_successes: usize,
+    pub total_skips: usize,
     pub radius_attempts: usize,
     pub radius_successes: usize,
     pub radius: usize,
@@ -42,15 +43,11 @@ impl Grinder {
     pub fn run(&mut self) {
         let mut total_attempts: usize = 0;
         let mut total_successes: usize = 0;
+        let mut total_skips: usize = 0;
 
         let mut attempts_at_radius: usize = 0;
         let mut successes_at_radius: usize = 0;
         loop {
-            // TODO: base radius on the local contrast? High contrast -> smaller triangles
-            // TODO: check local difference meets threshold before attempting to draw?
-            // TODO: check that difference improvement is significant enough to warrant replacement?
-            // TODO: evaluate difference based on larger window size?
-
             total_attempts += 1;
 
             if total_attempts % 100 == 0 {
@@ -62,6 +59,7 @@ impl Grinder {
                     .send(MainWindowInput::Stats(Stats {
                         total_attempts,
                         total_successes,
+                        total_skips,
                         radius: self.config.radius as usize,
                         radius_attempts: attempts_at_radius,
                         radius_successes: successes_at_radius,
@@ -93,28 +91,68 @@ impl Grinder {
                 }
             }
 
-            let ps = PointSelector::new(&self.reference);
-            let (center_x, center_y) = ps.point();
+            let (center_x, center_y) = PointSelector::new(&self.reference).point();
+
+            let reference_color = ColorPicker::sample(&self.reference, center_x, center_y);
+            let current_color = ColorPicker::sample(&self.current, center_x, center_y);
+
+            // if reference pixel is the same as the current pixel, then continue onward
+            if reference_color == current_color {
+                total_skips += 1;
+                // println!("{} Skipping: reference == current color", total_attempts);
+                continue;
+            }
 
             let region = Region::new(center_x, center_y, self.config.radius);
-            let t1 = Triangle::from(&region);
 
-            let polypoints = t1.imageproc_points();
+            // get the delta between the reference and the current; if it's within a certain threshold, skip modifying it
+            let reference_crop = self.reference.crop(&region);
+            let current_crop = self.current.crop(&region);
+            let current_delta = reference_crop.delta(&current_crop.img);
 
-            let color = ColorPicker::sample(&self.reference, center_x, center_y);
+            let skip_pixel_threshold = 5;
+            let skip_region_threshold =
+                (region.abs_height() as usize * region.abs_width() as usize) * skip_pixel_threshold;
 
+            if current_delta < skip_region_threshold {
+                total_skips += 1;
+                // println!(
+                //     "{} Skipping: delta {} < {}",
+                //     total_attempts, current_delta, skip_region_threshold
+                // );
+                continue;
+            }
+
+            // let's draw a shape! This is the expensive bit, according to flame graphs
             let candidate = SImage {
-                img: imageproc::drawing::draw_polygon(&self.current.img, &polypoints, color).into(),
+                img: match self.config.circles {
+                    true => imageproc::drawing::draw_filled_circle(
+                        &self.current.img,
+                        (center_x as i32, center_y as i32),
+                        self.config.radius as i32,
+                        reference_color,
+                    )
+                    .into(),
+                    false => {
+                        let t1 = Triangle::from(&region);
+
+                        let polypoints = t1.imageproc_points();
+
+                        imageproc::drawing::draw_polygon(
+                            &self.current.img,
+                            &polypoints,
+                            reference_color,
+                        )
+                        .into()
+                    }
+                },
             };
 
             // check the deltas from that region
-            let reference_crop = self.reference.crop(&region);
-            let current_crop = self.current.crop(&region);
             let candidate_crop = candidate.crop(&region);
-
-            let current_delta = reference_crop.delta(&current_crop.img);
             let candidate_delta = reference_crop.delta(&candidate_crop.img);
 
+            // if candidate is better than current, promote it to current!
             if candidate_delta < current_delta {
                 self.current = candidate;
                 successes_at_radius += 1;
