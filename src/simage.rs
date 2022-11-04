@@ -43,7 +43,7 @@ impl SImage {
         self.img.height()
     }
 
-    pub fn crop(&self, region: &Region) -> SImage {
+    pub fn section(&self, region: &Region) -> SImage {
         let x = region.abs_x();
         let y = region.abs_y();
         let width = region.abs_width();

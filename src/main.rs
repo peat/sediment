@@ -15,32 +15,44 @@ use clap::Parser;
 #[derive(Clone, Parser, Debug)]
 pub struct Config {
     /// Path to the input image file
-    #[arg(short, long)]
+    #[arg(short = 'i', long)]
     input: String,
 
     /// Path to the output image file (will overwrite)
-    #[arg(short, long)]
+    #[arg(short = 'o', long)]
     output: String,
 
     /// Display a GUI to view progress
-    #[arg(short, long)]
+    #[arg(short = 'g', long)]
     gui: bool,
 
     /// Use circles instead of triangles
-    #[arg(short, long)]
+    #[arg(short = 'c', long)]
     circles: bool,
 
     /// Maximum radius of the shapes to be placed
-    #[arg(short, long, default_value_t = 100)]
-    radius: u32,
+    #[arg(short = 'r', long, default_value_t = 100)]
+    max_radius: u32,
 
-    /// Reduce the radius size when successes are lower than this rate
-    #[arg(long, default_value_t = 0.2)]
-    radius_success_threshold: f32,
+    /// Minimum radius of the shapes to be placed
+    #[arg(short = 'm', long, default_value_t = 1)]
+    min_radius: u32,
+
+    /// Shrink the radius size when successes are lower than this rate
+    #[arg(short = 't', long, default_value_t = 0.2)]
+    radius_shrink_threshold: f32,
+
+    /// Amount to shrink the radius at each step
+    #[arg(short = 'p', long, default_value_t = 0.1)]
+    radius_step: f32,
 
     /// Reduce the radius size after this many attempts are made
-    #[arg(long, default_value_t = 1000)]
+    #[arg(short = 'a', long, default_value_t = 1000)]
     radius_attempt_limit: usize,
+
+    /// Threshold for skipping shape placement
+    #[arg(short = 's', long, short, default_value_t = 0.9)]
+    similarity_threshold: f32,
 }
 
 fn main() {

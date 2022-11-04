@@ -56,6 +56,15 @@ impl RateMeter {
     pub fn reset(&mut self) {
         self.samples = vec![];
     }
+
+    /// Defaults false if there aren't enough samples
+    pub fn is_below(&self, rate: f32) -> bool {
+        if let Some(current_rate) = self.rate() {
+            current_rate < rate
+        } else {
+            false
+        }
+    }
 }
 
 pub struct Grinder {
@@ -102,6 +111,9 @@ impl Grinder {
         // total number of skipped iterations, due to the selected region not being worth changing
         let mut total_skips: usize = 0;
 
+        // The current radius of the shape we're attempting to place
+        let mut current_radius = self.config.max_radius;
+
         // number of attempts at updating at the given radius size
         let mut attempts_at_radius: usize = 0;
 
@@ -124,10 +136,10 @@ impl Grinder {
                     total_attempts: total_iterations,
                     total_successes,
                     total_skips,
-                    radius: self.config.radius as usize,
+                    radius: current_radius as usize,
                     radius_attempts: attempts_at_radius,
                     radius_successes: successes_at_radius,
-                    radius_success_rate: radius_success_rate.rate().unwrap_or(0.0),
+                    radius_success_rate: radius_success_rate.rate().unwrap_or_default(),
                     delta: self.reference.delta(&self.current.img),
                     elapsed: Instant::now() - start_time,
                 };
@@ -137,69 +149,74 @@ impl Grinder {
             }
 
             // examine the success rate to determine if we need to adjust our radius
-            if let Some(success_ratio) = radius_success_rate.rate() {
-                if (success_ratio < self.config.radius_success_threshold)
-                    || (attempts_at_radius > self.config.radius_attempt_limit)
-                {
-                    // reset our success rate calculator
-                    radius_success_rate.reset();
+            if radius_success_rate.is_below(self.config.radius_shrink_threshold)
+                || (attempts_at_radius > self.config.radius_attempt_limit)
+            {
+                // reset our success rate calculator
+                radius_success_rate.reset();
 
-                    // reset successes and attempts
-                    attempts_at_radius = 0;
-                    successes_at_radius = 0;
+                // reset successes and attempts
+                attempts_at_radius = 0;
+                successes_at_radius = 0;
 
-                    // step down radius
-                    self.config.radius -= 1;
+                // step down radius 10%, and guard against tiny values
+                let raw_step = (current_radius as f32) * self.config.radius_step;
+                let mut int_step = raw_step as u32;
+                if raw_step < 1.0 {
+                    int_step = 1;
                 }
+
+                current_radius -= int_step;
             }
 
-            // if our radius goes to zero, we're done! Send the last update, write out the image, and return.
-            if self.config.radius == 0 {
+            // if our radius hits the threshold we're done! Send the last update, write out the image, and return.
+            if current_radius < self.config.min_radius {
                 self.current.save(&self.config.output);
                 return;
             }
 
+            // Picks the CENTER POINT of the region to be examined. This allows us to draw shapes that overlap
+            // the edges of the image.
             let (center_x, center_y) = point_selector.point();
 
             let reference_color = ColorPicker::sample(&self.reference, center_x, center_y);
             let current_color = ColorPicker::sample(&self.current, center_x, center_y);
 
-            // if reference pixel is the same as the current pixel, then continue onward
+            // if reference pixel is the same as the current pixel, then skip ahead
             if reference_color == current_color {
                 total_skips += 1;
                 radius_success_rate.sample(0);
-                // println!("{} Skipping: reference == current color", total_attempts);
                 continue;
             }
 
-            let region = Region::new(center_x, center_y, self.config.radius);
+            let region = Region::new(center_x, center_y, current_radius);
 
             // get the delta between the reference and the current; if it's within a certain threshold, skip modifying it
-            let reference_crop = self.reference.crop(&region);
-            let current_crop = self.current.crop(&region);
+            let reference_crop = self.reference.section(&region);
+            let current_crop = self.current.section(&region);
 
             let reference_region_value = reference_crop.value();
             let current_region_value = current_crop.value();
 
-            let region_completeness =
-                (current_region_value as f32) / (reference_region_value as f32);
-            let skip_region_threshold = 0.9;
+            let region_similarity = (current_region_value as f32) / (reference_region_value as f32);
 
-            if (region_completeness < 1.0) && (region_completeness > skip_region_threshold) {
+            // Skip ahead if this region is already looking really good.
+            if (region_similarity < 1.0) && (region_similarity > self.config.similarity_threshold) {
                 total_skips += 1;
                 radius_success_rate.sample(0);
                 continue;
             }
 
-            // Don't copy the whole image; this is dumb. We should operate on a sample and then put it back into the image
+            // Don't copy the whole image; this is dumb. We should operate on a sample and then put it back into the image.
+            // This is currently the most expensive part of this process!
             let mut candidate = self.current.clone();
 
-            // let's draw a shape! This is the expensive bit, according to flame graphs
+            // let's draw a shape! Refactor me because this is kinda gross.
             match self.config.circles {
                 true => imageproc::drawing::draw_filled_circle_mut(
                     &mut candidate.img,
                     (center_x as i32, center_y as i32),
-                    self.config.radius as i32,
+                    current_radius as i32,
                     reference_color,
                 ),
                 false => {
@@ -216,11 +233,11 @@ impl Grinder {
             };
 
             // check the deltas from that region
-            let candidate_crop = candidate.crop(&region);
+            let candidate_crop = candidate.section(&region);
             let candidate_delta = reference_crop.delta(&candidate_crop.img);
             let current_delta = reference_crop.delta(&current_crop.img);
 
-            // if candidate is better than current, promote it to current!
+            // if candidate is closer to the reference than the current best, promote it to current!
             if candidate_delta < current_delta {
                 self.current = candidate;
                 radius_success_rate.sample(1);
@@ -229,10 +246,6 @@ impl Grinder {
                 total_successes += 1;
             } else {
                 radius_success_rate.sample(0);
-                // println!(
-                //     "{} - Failed: candidate_delta {} > current_delta {}",
-                //     total_attempts, candidate_delta, current_delta
-                // );
             }
         }
     }
