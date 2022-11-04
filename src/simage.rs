@@ -3,7 +3,10 @@ use image::{DynamicImage, GenericImageView, Rgba};
 // TODO: Gross, reorganize me
 use crate::grinder::Region;
 
+#[derive(Clone)]
 pub struct SImage {
+    pub origin_x: u32,
+    pub origin_y: u32,
     pub img: DynamicImage,
 }
 
@@ -15,13 +18,21 @@ impl SImage {
             *pixel = Rgba([0, 0, 0, 255]);
         }
 
-        Self { img }
+        Self {
+            origin_x: 0,
+            origin_y: 0,
+            img,
+        }
     }
 
     pub fn open(path: &str) -> Result<Self, String> {
         let img = image::open(path).map_err(|e| format!("{}", e))?;
 
-        Ok(Self { img })
+        Ok(Self {
+            origin_x: 0,
+            origin_y: 0,
+            img,
+        })
     }
 
     pub fn width(&self) -> u32 {
@@ -40,7 +51,29 @@ impl SImage {
 
         let img = self.img.crop_imm(x, y, width, height);
 
-        Self { img }
+        Self {
+            origin_x: x,
+            origin_y: y,
+            img,
+        }
+    }
+
+    pub fn value(&self) -> usize {
+        let mut value: usize = 0;
+        for p in self.img.pixels() {
+            value += Self::pixel_value(p.2); // 0 and 1 are coordinates, 2 is the pixel itself
+        }
+        value
+    }
+
+    fn pixel_value(a: Rgba<u8>) -> usize {
+        let mut value: usize = 0;
+
+        value += a[0] as usize;
+        value += a[1] as usize;
+        value += a[2] as usize;
+
+        value
     }
 
     fn channel_delta(a: u8, b: u8) -> u8 {

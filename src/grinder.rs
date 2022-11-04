@@ -1,4 +1,5 @@
 use std::sync::mpsc::Sender;
+use std::time::{Duration, Instant};
 
 use crate::gui::MainWindowInput;
 use crate::{Config, SImage};
@@ -15,8 +16,46 @@ pub struct Stats {
     pub total_skips: usize,
     pub radius_attempts: usize,
     pub radius_successes: usize,
+    pub radius_success_rate: f32,
     pub radius: usize,
     pub delta: usize,
+    pub elapsed: Duration,
+}
+
+pub struct RateMeter {
+    limit: usize,
+    samples: Vec<usize>,
+}
+
+impl RateMeter {
+    pub fn new(limit: usize) -> Self {
+        Self {
+            limit,
+            samples: vec![],
+        }
+    }
+
+    pub fn sample(&mut self, value: usize) {
+        self.samples.push(value);
+
+        if self.samples.len() > self.limit {
+            self.samples.remove(0);
+        }
+    }
+
+    pub fn rate(&self) -> Option<f32> {
+        if self.samples.len() >= self.limit {
+            let sum: usize = self.samples.iter().sum();
+            let rate = (sum as f32) / (self.limit as f32);
+            Some(rate)
+        } else {
+            None
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.samples = vec![];
+    }
 }
 
 pub struct Grinder {
@@ -40,58 +79,87 @@ impl Grinder {
         }
     }
 
+    pub fn send_update(&mut self, stats: Stats) {
+        self.tx
+            .send(MainWindowInput::Preview(self.current.img.clone()))
+            .unwrap();
+
+        self.tx.send(MainWindowInput::Stats(stats)).unwrap();
+    }
+
     pub fn run(&mut self) {
-        let mut total_attempts: usize = 0;
+        let start_time = Instant::now();
+
+        // generates points to examine for shape placement
+        let point_selector = PointSelector::new(&self.reference);
+
+        // tracks total iterations through the grinder loop
+        let mut total_iterations: usize = 0;
+
+        // total number of successful shape placements!
         let mut total_successes: usize = 0;
+
+        // total number of skipped iterations, due to the selected region not being worth changing
         let mut total_skips: usize = 0;
 
+        // number of attempts at updating at the given radius size
         let mut attempts_at_radius: usize = 0;
+
+        // number of successful attempts at updating at the given radius size
         let mut successes_at_radius: usize = 0;
+
+        // tracks the success rate for the current radius
+        let mut radius_success_rate = RateMeter::new(100);
+
+        // tracks when the last update message was sent from the grinder
+        let mut last_update = Instant::now();
+
         loop {
-            total_attempts += 1;
-
-            if total_attempts % 100 == 0 {
-                self.tx
-                    .send(MainWindowInput::Preview(self.current.img.clone()))
-                    .unwrap();
-
-                self.tx
-                    .send(MainWindowInput::Stats(Stats {
-                        total_attempts,
-                        total_successes,
-                        total_skips,
-                        radius: self.config.radius as usize,
-                        radius_attempts: attempts_at_radius,
-                        radius_successes: successes_at_radius,
-                        delta: self.reference.delta(&self.current.img),
-                    }))
-                    .unwrap();
-            }
-
+            total_iterations += 1;
             attempts_at_radius += 1;
 
-            // make sure we have enough attempts at that size to start adjusting the radius
-            if attempts_at_radius > 25 {
-                let success_ratio = (successes_at_radius as f32) / (attempts_at_radius as f32);
+            // if we haven't sent an update in X milliseconds, send one.
+            if (Instant::now() - last_update) > Duration::from_millis(250) {
+                let stats = Stats {
+                    total_attempts: total_iterations,
+                    total_successes,
+                    total_skips,
+                    radius: self.config.radius as usize,
+                    radius_attempts: attempts_at_radius,
+                    radius_successes: successes_at_radius,
+                    radius_success_rate: radius_success_rate.rate().unwrap_or(0.0),
+                    delta: self.reference.delta(&self.current.img),
+                    elapsed: Instant::now() - start_time,
+                };
+
+                self.send_update(stats);
+                last_update = Instant::now();
+            }
+
+            // examine the success rate to determine if we need to adjust our radius
+            if let Some(success_ratio) = radius_success_rate.rate() {
                 if (success_ratio < self.config.radius_success_threshold)
                     || (attempts_at_radius > self.config.radius_attempt_limit)
                 {
-                    // step down radius
-                    self.config.radius -= 1;
+                    // reset our success rate calculator
+                    radius_success_rate.reset();
 
                     // reset successes and attempts
                     attempts_at_radius = 0;
                     successes_at_radius = 0;
 
-                    // if radius is 2, quit
-                    if self.config.radius < 1 {
-                        self.current.save(&self.config.output);
-                        return;
-                    }
+                    // step down radius
+                    self.config.radius -= 1;
                 }
             }
 
-            let (center_x, center_y) = PointSelector::new(&self.reference).point();
+            // if our radius goes to zero, we're done! Send the last update, write out the image, and return.
+            if self.config.radius == 0 {
+                self.current.save(&self.config.output);
+                return;
+            }
+
+            let (center_x, center_y) = point_selector.point();
 
             let reference_color = ColorPicker::sample(&self.reference, center_x, center_y);
             let current_color = ColorPicker::sample(&self.current, center_x, center_y);
@@ -99,6 +167,7 @@ impl Grinder {
             // if reference pixel is the same as the current pixel, then continue onward
             if reference_color == current_color {
                 total_skips += 1;
+                radius_success_rate.sample(0);
                 // println!("{} Skipping: reference == current color", total_attempts);
                 continue;
             }
@@ -108,55 +177,62 @@ impl Grinder {
             // get the delta between the reference and the current; if it's within a certain threshold, skip modifying it
             let reference_crop = self.reference.crop(&region);
             let current_crop = self.current.crop(&region);
-            let current_delta = reference_crop.delta(&current_crop.img);
 
-            let skip_pixel_threshold = 5;
-            let skip_region_threshold =
-                (region.abs_height() as usize * region.abs_width() as usize) * skip_pixel_threshold;
+            let reference_region_value = reference_crop.value();
+            let current_region_value = current_crop.value();
 
-            if current_delta < skip_region_threshold {
+            let region_completeness =
+                (current_region_value as f32) / (reference_region_value as f32);
+            let skip_region_threshold = 0.9;
+
+            if (region_completeness < 1.0) && (region_completeness > skip_region_threshold) {
                 total_skips += 1;
-                // println!(
-                //     "{} Skipping: delta {} < {}",
-                //     total_attempts, current_delta, skip_region_threshold
-                // );
+                radius_success_rate.sample(0);
                 continue;
             }
 
+            // Don't copy the whole image; this is dumb. We should operate on a sample and then put it back into the image
+            let mut candidate = self.current.clone();
+
             // let's draw a shape! This is the expensive bit, according to flame graphs
-            let candidate = SImage {
-                img: match self.config.circles {
-                    true => imageproc::drawing::draw_filled_circle(
-                        &self.current.img,
-                        (center_x as i32, center_y as i32),
-                        self.config.radius as i32,
+            match self.config.circles {
+                true => imageproc::drawing::draw_filled_circle_mut(
+                    &mut candidate.img,
+                    (center_x as i32, center_y as i32),
+                    self.config.radius as i32,
+                    reference_color,
+                ),
+                false => {
+                    let t1 = Triangle::from(&region);
+
+                    let polypoints = t1.imageproc_points();
+
+                    imageproc::drawing::draw_polygon_mut(
+                        &mut candidate.img,
+                        &polypoints,
                         reference_color,
-                    )
-                    .into(),
-                    false => {
-                        let t1 = Triangle::from(&region);
-
-                        let polypoints = t1.imageproc_points();
-
-                        imageproc::drawing::draw_polygon(
-                            &self.current.img,
-                            &polypoints,
-                            reference_color,
-                        )
-                        .into()
-                    }
-                },
+                    );
+                }
             };
 
             // check the deltas from that region
             let candidate_crop = candidate.crop(&region);
             let candidate_delta = reference_crop.delta(&candidate_crop.img);
+            let current_delta = reference_crop.delta(&current_crop.img);
 
             // if candidate is better than current, promote it to current!
             if candidate_delta < current_delta {
                 self.current = candidate;
+                radius_success_rate.sample(1);
+
                 successes_at_radius += 1;
                 total_successes += 1;
+            } else {
+                radius_success_rate.sample(0);
+                // println!(
+                //     "{} - Failed: candidate_delta {} > current_delta {}",
+                //     total_attempts, candidate_delta, current_delta
+                // );
             }
         }
     }
