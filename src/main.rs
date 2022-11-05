@@ -4,6 +4,7 @@ use std::thread;
 
 mod grinder;
 mod gui;
+mod rate_meter;
 mod simage;
 
 use grinder::Grinder;
