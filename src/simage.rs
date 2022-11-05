@@ -1,12 +1,11 @@
 use image::{DynamicImage, GenericImageView, Rgba};
 
-// TODO: Gross, reorganize me
 use crate::grinder::Region;
 
 #[derive(Clone)]
 pub struct SImage {
-    pub origin_x: u32,
-    pub origin_y: u32,
+    pub center_x: i32,
+    pub center_y: i32,
     pub img: DynamicImage,
 }
 
@@ -19,8 +18,8 @@ impl SImage {
         }
 
         Self {
-            origin_x: 0,
-            origin_y: 0,
+            center_x: 0,
+            center_y: 0,
             img,
         }
     }
@@ -29,8 +28,8 @@ impl SImage {
         let img = image::open(path).map_err(|e| format!("{}", e))?;
 
         Ok(Self {
-            origin_x: 0,
-            origin_y: 0,
+            center_x: (img.width() as i32) / 2,
+            center_y: (img.height() as i32) / 2,
             img,
         })
     }
@@ -50,10 +49,30 @@ impl SImage {
         let height = region.abs_height();
 
         let img = self.img.crop_imm(x, y, width, height);
+        let mut center_x = region.radius as i32;
+        let mut center_y = region.radius as i32;
+
+        // re-determine the center point; adjust center_x and center_y for overhang
+        if region.max_x > self.img.width() as i32 {
+            center_x += region.max_x - self.img.width() as i32;
+        }
+
+        if region.min_x < 0 {
+            center_x += region.min_x;
+        }
+
+        if region.max_y > self.img.height() as i32 {
+            center_y += region.max_y - self.img.height() as i32;
+        }
+
+        if region.min_y < 0 {
+            center_y += region.min_y;
+        }
+
 
         Self {
-            origin_x: x,
-            origin_y: y,
+            center_x,
+            center_y,
             img,
         }
     }

@@ -3,7 +3,7 @@ use std::time::{Duration, Instant};
 
 use crate::gui::MainWindowInput;
 use crate::{rate_meter::RateMeter, Config, SImage};
-use image::Rgba;
+use image::{GenericImage, Rgba};
 use imageproc::{drawing::Canvas, point::Point};
 
 use rand::seq::SliceRandom;
@@ -86,7 +86,7 @@ impl Grinder {
             attempts_at_radius += 1;
 
             // if we haven't sent an update in X milliseconds, send one.
-            if (Instant::now() - last_update) > Duration::from_millis(250) {
+            if (Instant::now() - last_update) > Duration::from_millis(20) {
                 let stats = Stats {
                     total_attempts: total_iterations,
                     total_successes,
@@ -126,6 +126,19 @@ impl Grinder {
 
             // if our radius hits the threshold we're done! Send the last update, write out the image, and return.
             if current_radius < self.config.min_radius {
+                let stats = Stats {
+                    total_attempts: total_iterations,
+                    total_successes,
+                    total_skips,
+                    radius: current_radius as usize,
+                    radius_attempts: attempts_at_radius,
+                    radius_successes: successes_at_radius,
+                    radius_success_rate: radius_success_rate.rate().unwrap_or_default(),
+                    delta: self.reference.delta(&self.current.img),
+                    elapsed: Instant::now() - start_time,
+                };
+
+                self.send_update(stats);
                 self.current.save(&self.config.output);
                 return;
             }
@@ -162,19 +175,24 @@ impl Grinder {
                 continue;
             }
 
-            // Don't copy the whole image; this is dumb. We should operate on a sample and then put it back into the image.
-            // This is currently the most expensive part of this process!
-            let mut candidate = self.current.clone();
+            // work from a crop of the current best image
+            let mut candidate_crop = current_crop.clone();
 
             // let's draw a shape! Refactor me because this is kinda gross.
             match self.config.circles {
-                true => imageproc::drawing::draw_filled_circle_mut(
-                    &mut candidate.img,
-                    (center_x as i32, center_y as i32),
+                true => {
+
+//                     println!("{:?} -> {},{},{}", region, candidate_crop.center_x, candidate_crop.center_y, region.radius);
+
+                    imageproc::drawing::draw_filled_circle_mut(
+                    &mut candidate_crop.img,
+                    (candidate_crop.center_x, candidate_crop.center_y),
                     current_radius as i32,
                     reference_color,
-                ),
+                )},
                 false => {
+                    panic!("Nope");
+                    /*
                     let t1 = Triangle::from(&region);
 
                     let polypoints = t1.imageproc_points();
@@ -184,19 +202,19 @@ impl Grinder {
                         &polypoints,
                         reference_color,
                     );
+                    */
                 }
             };
 
             // check the deltas from that region
-            let candidate_crop = candidate.section(&region);
             let candidate_delta = reference_crop.delta(&candidate_crop.img);
             let current_delta = reference_crop.delta(&current_crop.img);
 
             // if candidate is closer to the reference than the current best, promote it to current!
             if candidate_delta < current_delta {
-                self.current = candidate;
-                radius_success_rate.sample(1);
+                self.current.img.copy_from(&candidate_crop.img, region.abs_x(), region.abs_y()).unwrap();
 
+                radius_success_rate.sample(1);
                 successes_at_radius += 1;
                 total_successes += 1;
             } else {
