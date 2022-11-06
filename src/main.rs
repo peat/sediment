@@ -23,13 +23,13 @@ pub struct Config {
     #[arg(short = 'o', long)]
     output: String,
 
+    /// Path to the raw output file (will overwrite)
+    #[arg(short = 'x', long)]
+    raw: Option<String>,
+
     /// Display a GUI to view progress
     #[arg(short = 'g', long)]
     gui: bool,
-
-    /// Use circles instead of triangles
-    #[arg(short = 'c', long)]
-    circles: bool,
 
     /// Maximum radius of the shapes to be placed
     #[arg(short = 'r', long, default_value_t = 100)]

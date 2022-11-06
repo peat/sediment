@@ -4,10 +4,19 @@ use std::time::{Duration, Instant};
 use crate::gui::MainWindowInput;
 use crate::{rate_meter::RateMeter, Config, SImage};
 use image::{GenericImage, Rgba};
-use imageproc::{drawing::Canvas, point::Point};
-
-use rand::seq::SliceRandom;
+use imageproc::drawing::Canvas;
 use rand::Rng;
+use serde::Serialize;
+
+#[derive(Serialize)]
+pub struct Circle {
+    pub x: u32,
+    pub y: u32,
+    pub radius: u32,
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+}
 
 #[derive(Debug)]
 pub struct Stats {
@@ -27,6 +36,7 @@ pub struct Grinder {
     current: SImage,
     config: Config,
     tx: Sender<MainWindowInput>,
+    circles: Vec<Circle>,
 }
 
 impl Grinder {
@@ -40,6 +50,7 @@ impl Grinder {
             current: SImage::new(width, height),
             config,
             tx,
+            circles: vec![],
         }
     }
 
@@ -140,6 +151,14 @@ impl Grinder {
 
                 self.send_update(stats);
                 self.current.save(&self.config.output);
+
+                if let Some(raw_path) = &self.config.raw {
+                    let mut writer = csv::Writer::from_path(raw_path).unwrap();
+                    for c in self.circles.iter() {
+                        writer.serialize(c);
+                    }
+                }
+
                 return;
             }
 
@@ -178,33 +197,13 @@ impl Grinder {
             // work from a crop of the current best image
             let mut candidate_crop = current_crop.clone();
 
-            // let's draw a shape! Refactor me because this is kinda gross.
-            match self.config.circles {
-                true => {
-
-//                     println!("{:?} -> {},{},{}", region, candidate_crop.center_x, candidate_crop.center_y, region.radius);
-
-                    imageproc::drawing::draw_filled_circle_mut(
-                    &mut candidate_crop.img,
-                    (candidate_crop.center_x, candidate_crop.center_y),
-                    current_radius as i32,
-                    reference_color,
-                )},
-                false => {
-                    panic!("Nope");
-                    /*
-                    let t1 = Triangle::from(&region);
-
-                    let polypoints = t1.imageproc_points();
-
-                    imageproc::drawing::draw_polygon_mut(
-                        &mut candidate.img,
-                        &polypoints,
-                        reference_color,
-                    );
-                    */
-                }
-            };
+            // let's draw a circle! Refactor me because this is kinda gross.
+            imageproc::drawing::draw_filled_circle_mut(
+                &mut candidate_crop.img,
+                (candidate_crop.center_x, candidate_crop.center_y),
+                current_radius as i32,
+                reference_color,
+            );
 
             // check the deltas from that region
             let candidate_delta = reference_crop.delta(&candidate_crop.img);
@@ -212,7 +211,22 @@ impl Grinder {
 
             // if candidate is closer to the reference than the current best, promote it to current!
             if candidate_delta < current_delta {
-                self.current.img.copy_from(&candidate_crop.img, region.abs_x(), region.abs_y()).unwrap();
+                // copy the candidate crop into the current image
+                self.current
+                    .img
+                    .copy_from(&candidate_crop.img, region.abs_x(), region.abs_y())
+                    .unwrap();
+
+                let circle = Circle {
+                    x: center_x,
+                    y: center_y,
+                    radius: region.radius,
+                    r: current_color.0[0],
+                    g: current_color.0[1],
+                    b: current_color.0[2],
+                };
+
+                self.circles.push(circle);
 
                 radius_success_rate.sample(1);
                 successes_at_radius += 1;
@@ -297,76 +311,6 @@ impl Region {
 
     pub fn abs_height(&self) -> u32 {
         (self.max_y as u32) - self.abs_y()
-    }
-}
-
-pub enum RegionEdge {
-    Top,
-    Bottom,
-    Right,
-    Left,
-}
-
-pub const REGION_EDGES: [RegionEdge; 4] = [
-    RegionEdge::Top,
-    RegionEdge::Bottom,
-    RegionEdge::Right,
-    RegionEdge::Left,
-];
-
-#[derive(Default, Debug)]
-pub struct Triangle {
-    pub a: (i32, i32),
-    pub b: (i32, i32),
-    pub c: (i32, i32),
-}
-
-impl From<&Region> for Triangle {
-    fn from(region: &Region) -> Self {
-        // goal is to create a triangle that touches three random edges and overlaps the central point
-        let mut triangle = Triangle::default();
-
-        let mut rng = rand::thread_rng();
-        for (idx, edge) in REGION_EDGES.choose_multiple(&mut rng, 3).enumerate() {
-            let point = match edge {
-                // Use minimums + 1 in order to avoid coordinate collisions with minimums
-                RegionEdge::Top => (
-                    rng.gen_range((region.min_x + 1)..region.max_x),
-                    region.min_y,
-                ),
-                RegionEdge::Bottom => (
-                    rng.gen_range((region.min_x + 1)..region.max_x),
-                    region.max_y,
-                ),
-                RegionEdge::Right => (
-                    region.max_x,
-                    rng.gen_range((region.min_y + 1)..region.max_y),
-                ),
-                RegionEdge::Left => (
-                    region.min_x,
-                    rng.gen_range((region.min_y + 1)..region.max_y),
-                ),
-            };
-
-            match idx {
-                0 => triangle.a = point,
-                1 => triangle.b = point,
-                2 => triangle.c = point,
-                _ => panic!("whoa, triangles only have three points"),
-            }
-        }
-
-        triangle
-    }
-}
-
-impl Triangle {
-    pub fn imageproc_points(&self) -> Vec<Point<i32>> {
-        vec![
-            Point::new(self.a.0, self.a.1),
-            Point::new(self.b.0, self.b.1),
-            Point::new(self.c.0, self.c.1),
-        ]
     }
 }
 
