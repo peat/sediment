@@ -2,7 +2,7 @@ use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
 use crate::gui::MainWindowInput;
-use crate::{rate_meter::RateMeter, Config, SImage};
+use crate::{rate_meter::RateMeter, BuildConfig, SImage};
 use image::{GenericImage, Rgba};
 use imageproc::drawing::Canvas;
 use rand::Rng;
@@ -31,16 +31,16 @@ pub struct Stats {
     pub elapsed: Duration,
 }
 
-pub struct Grinder {
+pub struct Builder {
     reference: SImage,
     current: SImage,
-    config: Config,
+    config: BuildConfig,
     tx: Sender<MainWindowInput>,
     circles: Vec<Circle>,
 }
 
-impl Grinder {
-    pub fn new(tx: Sender<MainWindowInput>, config: Config) -> Self {
+impl Builder {
+    pub fn new(tx: Sender<MainWindowInput>, config: BuildConfig) -> Self {
         let reference = SImage::open(&config.input).unwrap();
         let width = reference.width();
         let height = reference.height();
@@ -68,7 +68,7 @@ impl Grinder {
         // generates points to examine for shape placement
         let point_selector = PointSelector::new(&self.reference);
 
-        // tracks total iterations through the grinder loop
+        // tracks total iterations through the builder loop
         let mut total_iterations: usize = 0;
 
         // total number of successful shape placements!
@@ -89,7 +89,7 @@ impl Grinder {
         // tracks the success rate for the current radius
         let mut radius_success_rate = RateMeter::new(100);
 
-        // tracks when the last update message was sent from the grinder
+        // tracks when the last update message was sent from the builder
         let mut last_update = Instant::now();
 
         loop {

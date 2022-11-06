@@ -18,7 +18,7 @@ pub fn run(rx: Receiver<MainWindowInput>) {
 
 pub enum MainWindowInput {
     Preview(image::DynamicImage),
-    Stats(crate::grinder::Stats),
+    Stats(crate::builder::Stats),
 }
 
 pub struct MainWindow {
@@ -58,7 +58,7 @@ impl App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint(); // continuous repainting
 
-        // handle any messages that may have come in from the grinder
+        // handle any messages that may have come in from the builder
         if let Ok(input) = self.rx.try_recv() {
             match input {
                 MainWindowInput::Preview(new_preview) => self.handle_new_preview(new_preview),

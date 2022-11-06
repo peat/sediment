@@ -2,19 +2,29 @@ use std::thread;
 
 // use std::time::Instant;
 
-mod grinder;
+mod builder;
 mod gui;
 mod rate_meter;
 mod simage;
 
-use grinder::Grinder;
+use builder::Builder;
 use simage::SImage;
 use std::sync::mpsc::channel;
 
-use clap::Parser;
+use clap::{Args, Parser, Subcommand};
 
 #[derive(Clone, Parser, Debug)]
 pub struct Config {
+    #[command(subcommand)]
+    command: Command,
+
+    /// Display a GUI to view progress
+    #[arg(short = 'g', long)]
+    gui: bool,
+}
+
+#[derive(Args, Clone, Debug)]
+pub struct BuildConfig {
     /// Path to the input image file
     #[arg(short = 'i', long)]
     input: String,
@@ -26,10 +36,6 @@ pub struct Config {
     /// Path to the raw output file (will overwrite)
     #[arg(short = 'x', long)]
     raw: Option<String>,
-
-    /// Display a GUI to view progress
-    #[arg(short = 'g', long)]
-    gui: bool,
 
     /// Maximum radius of the shapes to be placed
     #[arg(short = 'r', long, default_value_t = 100)]
@@ -56,16 +62,25 @@ pub struct Config {
     similarity_threshold: f32,
 }
 
+#[derive(Subcommand, Clone, Debug)]
+pub enum Command {
+    Build(BuildConfig),
+}
+
 fn main() {
     let config = Config::parse();
-    let grinder_config = config.clone();
 
-    let (grinder_tx, main_window_rx) = channel();
+    let (builder_tx, main_window_rx) = channel();
 
-    let handle = thread::spawn(move || {
-        let mut grinder = Grinder::new(grinder_tx, grinder_config);
-        grinder.run();
-    });
+    match config.command {
+        Command::Build(build_config) => {
+            thread::spawn(move || {
+                Builder::new(builder_tx, build_config).run();
+            })
+            .join()
+            .unwrap();
+        }
+    }
 
     if config.gui {
         // UI run loop; doesn't exit.
@@ -79,6 +94,4 @@ fn main() {
             }
         }
     }
-
-    handle.join().unwrap();
 }

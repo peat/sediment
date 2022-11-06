@@ -1,6 +1,6 @@
 use image::{DynamicImage, GenericImageView, Rgba};
 
-use crate::grinder::Region;
+use crate::builder::Region;
 
 #[derive(Clone)]
 pub struct SImage {
@@ -68,7 +68,6 @@ impl SImage {
         if region.min_y < 0 {
             center_y += region.min_y;
         }
-
 
         Self {
             center_x,
