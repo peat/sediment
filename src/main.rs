@@ -23,6 +23,14 @@ pub struct Config {
     gui: bool,
 }
 
+#[derive(Subcommand, Clone, Debug)]
+pub enum Command {
+    /// Build a sediment image from an image file
+    Build(BuildConfig),
+    /// Render a sediment file to an image file
+    Render(RenderConfig),
+}
+
 #[derive(Args, Clone, Debug)]
 pub struct BuildConfig {
     /// Path to the input image file
@@ -62,9 +70,19 @@ pub struct BuildConfig {
     similarity_threshold: f32,
 }
 
-#[derive(Subcommand, Clone, Debug)]
-pub enum Command {
-    Build(BuildConfig),
+#[derive(Args, Clone, Debug)]
+pub struct RenderConfig {
+    /// Path to the input .smt file
+    #[arg(short = 'i', long)]
+    input: String,
+
+    /// Path to the output image file (will overwrite)
+    #[arg(short = 'o', long)]
+    output: String,
+
+    /// Scale factor for output image
+    #[arg(short, long)]
+    scale: f32,
 }
 
 fn main() {
@@ -79,6 +97,10 @@ fn main() {
             })
             .join()
             .unwrap();
+        }
+        Command::Render(render_config) => {
+            println!("Not implemented.");
+            println!("config: {:?}", render_config);
         }
     }
 
