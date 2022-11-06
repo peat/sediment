@@ -155,7 +155,7 @@ impl Grinder {
                 if let Some(raw_path) = &self.config.raw {
                     let mut writer = csv::Writer::from_path(raw_path).unwrap();
                     for c in self.circles.iter() {
-                        writer.serialize(c);
+                        writer.serialize(c).unwrap();
                     }
                 }
 
