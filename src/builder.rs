@@ -18,15 +18,21 @@ pub struct Circle {
     pub b: u8,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default, Copy, Clone)]
 pub struct Stats {
+    // tracks total iterations through the builder loop
     pub total_attempts: usize,
+    // total number of successful shape placements!
     pub total_successes: usize,
+    // total number of skipped iterations, due to the selected region not being worth changing
     pub total_skips: usize,
+    // number of attempts at updating at the given radius size
     pub radius_attempts: usize,
+    // number of successful attempts at updating at the given radius size
     pub radius_successes: usize,
     pub radius_success_rate: f32,
-    pub radius: usize,
+    // The current radius of the shape we're attempting to place
+    pub radius: u32,
     pub delta: usize,
     pub elapsed: Duration,
 }
@@ -37,6 +43,7 @@ pub struct Builder {
     config: BuildConfig,
     tx: Sender<MainWindowInput>,
     circles: Vec<Circle>,
+    stats: Stats,
 }
 
 impl Builder {
@@ -51,6 +58,7 @@ impl Builder {
             config,
             tx,
             circles: vec![],
+            stats: Stats::default(),
         }
     }
 
@@ -68,88 +76,57 @@ impl Builder {
         // generates points to examine for shape placement
         let point_selector = PointSelector::new(&self.reference);
 
-        // tracks total iterations through the builder loop
-        let mut total_iterations: usize = 0;
-
-        // total number of successful shape placements!
-        let mut total_successes: usize = 0;
-
-        // total number of skipped iterations, due to the selected region not being worth changing
-        let mut total_skips: usize = 0;
-
-        // The current radius of the shape we're attempting to place
-        let mut current_radius = self.config.max_radius;
-
-        // number of attempts at updating at the given radius size
-        let mut attempts_at_radius: usize = 0;
-
-        // number of successful attempts at updating at the given radius size
-        let mut successes_at_radius: usize = 0;
-
         // tracks the success rate for the current radius
-        let mut radius_success_rate = RateMeter::new(100);
+        let mut radius_success_rate = RateMeter::new(25);
 
         // tracks when the last update message was sent from the builder
         let mut last_update = Instant::now();
 
+        // start with our max radius, woo!
+        self.stats.radius = self.config.max_radius;
+
         loop {
-            total_iterations += 1;
-            attempts_at_radius += 1;
+            self.stats.total_attempts += 1;
+            self.stats.radius_attempts += 1;
 
             // if we haven't sent an update in X milliseconds, send one.
             if (Instant::now() - last_update) > Duration::from_millis(20) {
-                let stats = Stats {
-                    total_attempts: total_iterations,
-                    total_successes,
-                    total_skips,
-                    radius: current_radius as usize,
-                    radius_attempts: attempts_at_radius,
-                    radius_successes: successes_at_radius,
-                    radius_success_rate: radius_success_rate.rate().unwrap_or_default(),
-                    delta: self.reference.delta(&self.current.img),
-                    elapsed: Instant::now() - start_time,
-                };
+                self.stats.radius_success_rate = radius_success_rate.rate().unwrap_or_default();
+                self.stats.delta = self.reference.delta(&self.current.img);
+                self.stats.elapsed = Instant::now() - start_time;
 
-                self.send_update(stats);
+                self.send_update(self.stats.clone());
                 last_update = Instant::now();
             }
 
             // examine the success rate to determine if we need to adjust our radius
             if radius_success_rate.is_below(self.config.radius_shrink_threshold)
-                || (attempts_at_radius > self.config.radius_attempt_limit)
+                || (self.stats.radius_attempts > self.config.radius_attempt_limit)
             {
                 // reset our success rate calculator
                 radius_success_rate.reset();
 
                 // reset successes and attempts
-                attempts_at_radius = 0;
-                successes_at_radius = 0;
+                self.stats.radius_attempts = 0;
+                self.stats.radius_successes = 0;
 
                 // step down radius 10%, and guard against tiny values
-                let raw_step = (current_radius as f32) * self.config.radius_step;
+                let raw_step = (self.stats.radius as f32) * self.config.radius_step;
                 let mut int_step = raw_step as u32;
                 if raw_step < 1.0 {
                     int_step = 1;
                 }
 
-                current_radius -= int_step;
+                self.stats.radius -= int_step;
             }
 
             // if our radius hits the threshold we're done! Send the last update, write out the image, and return.
-            if current_radius < self.config.min_radius {
-                let stats = Stats {
-                    total_attempts: total_iterations,
-                    total_successes,
-                    total_skips,
-                    radius: current_radius as usize,
-                    radius_attempts: attempts_at_radius,
-                    radius_successes: successes_at_radius,
-                    radius_success_rate: radius_success_rate.rate().unwrap_or_default(),
-                    delta: self.reference.delta(&self.current.img),
-                    elapsed: Instant::now() - start_time,
-                };
+            if self.stats.radius < self.config.min_radius {
+                self.stats.radius_success_rate = radius_success_rate.rate().unwrap_or_default();
+                self.stats.delta = self.reference.delta(&self.current.img);
+                self.stats.elapsed = Instant::now() - start_time;
+                self.send_update(self.stats.clone());
 
-                self.send_update(stats);
                 self.current.save(&self.config.output);
 
                 if let Some(raw_path) = &self.config.raw {
@@ -171,12 +148,12 @@ impl Builder {
 
             // if reference pixel is the same as the current pixel, then skip ahead
             if reference_color == current_color {
-                total_skips += 1;
+                self.stats.total_skips += 1;
                 radius_success_rate.sample(0);
                 continue;
             }
 
-            let region = Region::new(center_x, center_y, current_radius);
+            let region = Region::new(center_x, center_y, self.stats.radius);
 
             // get the delta between the reference and the current; if it's within a certain threshold, skip modifying it
             let reference_crop = self.reference.section(&region);
@@ -189,7 +166,7 @@ impl Builder {
 
             // Skip ahead if this region is already looking really good.
             if (region_similarity < 1.0) && (region_similarity > self.config.similarity_threshold) {
-                total_skips += 1;
+                self.stats.total_skips += 1;
                 radius_success_rate.sample(0);
                 continue;
             }
@@ -201,7 +178,7 @@ impl Builder {
             imageproc::drawing::draw_filled_circle_mut(
                 &mut candidate_crop.img,
                 (candidate_crop.center_x, candidate_crop.center_y),
-                current_radius as i32,
+                self.stats.radius as i32,
                 reference_color,
             );
 
@@ -220,7 +197,7 @@ impl Builder {
                 let circle = Circle {
                     x: center_x,
                     y: center_y,
-                    radius: region.radius,
+                    radius: self.stats.radius,
                     r: current_color.0[0],
                     g: current_color.0[1],
                     b: current_color.0[2],
@@ -229,8 +206,8 @@ impl Builder {
                 self.circles.push(circle);
 
                 radius_success_rate.sample(1);
-                successes_at_radius += 1;
-                total_successes += 1;
+                self.stats.radius_successes += 1;
+                self.stats.total_successes += 1;
             } else {
                 radius_success_rate.sample(0);
             }

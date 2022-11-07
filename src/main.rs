@@ -16,10 +16,6 @@ use clap::{Args, Parser, Subcommand};
 pub struct Config {
     #[command(subcommand)]
     command: Command,
-
-    /// Display a GUI to view progress
-    #[arg(short = 'g', long)]
-    gui: bool,
 }
 
 #[derive(Subcommand, Clone, Debug)]
@@ -45,7 +41,7 @@ pub struct BuildConfig {
     raw: Option<String>,
 
     /// Maximum radius of the shapes to be placed
-    #[arg(short = 'r', long, default_value_t = 100)]
+    #[arg(short = 'r', long, default_value_t = 1000)]
     max_radius: u32,
 
     /// Minimum radius of the shapes to be placed
@@ -61,12 +57,16 @@ pub struct BuildConfig {
     radius_step: f32,
 
     /// Reduce the radius size after this many attempts are made
-    #[arg(short = 'a', long, default_value_t = 1000)]
+    #[arg(short = 'a', long, default_value_t = 5000)]
     radius_attempt_limit: usize,
 
     /// Threshold for skipping shape placement
     #[arg(short = 's', long, short, default_value_t = 0.9)]
     similarity_threshold: f32,
+
+    /// Display a GUI to view progress
+    #[arg(short = 'g', long)]
+    gui: bool,
 }
 
 #[derive(Args, Clone, Debug)]
@@ -82,32 +82,35 @@ pub struct SvgConfig {
 
 fn main() {
     let config = Config::parse();
-
-    let (builder_tx, main_window_rx) = channel();
+    println!("{:?}", config);
 
     match config.command {
         Command::Build(build_config) => {
-            thread::spawn(move || {
-                Builder::new(builder_tx, build_config).run();
-            })
-            .join()
-            .unwrap();
+            let (builder_tx, main_window_rx) = channel();
+            let use_gui = build_config.gui;
+
+            let handle = thread::spawn(move || {
+                let mut builder = Builder::new(builder_tx, build_config);
+                builder.run();
+            });
+
+            if use_gui {
+                // UI run loop; doesn't exit.
+                gui::run(main_window_rx);
+            } else {
+                loop {
+                    match main_window_rx.recv() {
+                        Ok(gui::MainWindowInput::Stats(stats)) => println!("{:?}", stats),
+                        Ok(_) => continue,
+                        Err(_) => return,
+                    }
+                }
+            }
+
+            handle.join().unwrap();
         }
         Command::Svg(render_config) => {
             crate::svg::Svg::new(render_config).run();
-        }
-    }
-
-    if config.gui {
-        // UI run loop; doesn't exit.
-        gui::run(main_window_rx);
-    } else {
-        loop {
-            match main_window_rx.recv() {
-                Ok(gui::MainWindowInput::Stats(stats)) => println!("{:?}", stats),
-                Ok(_) => continue,
-                Err(_) => return,
-            }
         }
     }
 }

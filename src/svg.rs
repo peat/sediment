@@ -1,5 +1,6 @@
 use crate::{builder::Circle, SvgConfig};
 use csv::Reader;
+use std::io::Write;
 
 pub struct Svg {
     config: SvgConfig,
@@ -54,20 +55,20 @@ impl Svg {
     }
 
     pub fn run(&mut self) {
+        let mut output_file = std::fs::File::create(&self.config.output).unwrap();
+
         let mut output = vec![];
         let width = self.find_width();
         let height = self.find_height();
 
         output.push(format!(
-            "<svg viewBox=\"0 0 {} {}\" xmlns=\"http://www.w3.org/2000/svg\">",
+            "<svg overflow=\"hidden\" width=\"{}\" height=\"{}\" xmlns=\"http://www.w3.org/2000/svg\">",
             width, height
         ));
 
-        output.push("<rect width=\"100%\" height=\"100%\" fill=\"black\" />".to_owned());
-
         for c in &self.circles {
             output.push(format!(
-                "  <circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" />",
+                "\t<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" />",
                 c.x,
                 c.y,
                 c.radius,
@@ -77,6 +78,6 @@ impl Svg {
 
         output.push("</svg>".to_owned());
 
-        println!("{}", output.join("\n"));
+        output_file.write_all(output.join("\n").as_bytes()).unwrap();
     }
 }
