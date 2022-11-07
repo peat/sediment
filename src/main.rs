@@ -1,11 +1,10 @@
 use std::thread;
 
-// use std::time::Instant;
-
 mod builder;
 mod gui;
 mod rate_meter;
 mod simage;
+mod svg;
 
 use builder::Builder;
 use simage::SImage;
@@ -28,7 +27,7 @@ pub enum Command {
     /// Build a sediment image from an image file
     Build(BuildConfig),
     /// Render a sediment file to an image file
-    Render(RenderConfig),
+    Svg(SvgConfig),
 }
 
 #[derive(Args, Clone, Debug)]
@@ -71,7 +70,7 @@ pub struct BuildConfig {
 }
 
 #[derive(Args, Clone, Debug)]
-pub struct RenderConfig {
+pub struct SvgConfig {
     /// Path to the input .smt file
     #[arg(short = 'i', long)]
     input: String,
@@ -79,10 +78,6 @@ pub struct RenderConfig {
     /// Path to the output image file (will overwrite)
     #[arg(short = 'o', long)]
     output: String,
-
-    /// Scale factor for output image
-    #[arg(short, long)]
-    scale: f32,
 }
 
 fn main() {
@@ -98,9 +93,8 @@ fn main() {
             .join()
             .unwrap();
         }
-        Command::Render(render_config) => {
-            println!("Not implemented.");
-            println!("config: {:?}", render_config);
+        Command::Svg(render_config) => {
+            crate::svg::Svg::new(render_config).run();
         }
     }
 

@@ -6,9 +6,9 @@ use crate::{rate_meter::RateMeter, BuildConfig, SImage};
 use image::{GenericImage, Rgba};
 use imageproc::drawing::Canvas;
 use rand::Rng;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub struct Circle {
     pub x: u32,
     pub y: u32,
