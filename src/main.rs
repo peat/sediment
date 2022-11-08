@@ -6,7 +6,7 @@ mod gui;
 mod rate_meter;
 mod render;
 
-use builder::{Builder, BuilderUpdate};
+use builder::{Builder, BuilderUpdate, Stats};
 use canvas::Canvas;
 use std::sync::mpsc::channel;
 
@@ -104,7 +104,7 @@ fn main() {
             } else {
                 loop {
                     match main_window_rx.recv() {
-                        Ok(BuilderUpdate::Stats(stats)) => println!("{:?}", stats),
+                        Ok(BuilderUpdate::Stats(stats)) => print_stats(&stats),
                         Ok(_) => continue,
                         Err(_) => return,
                     }
@@ -117,4 +117,17 @@ fn main() {
             crate::render::Render::new(render_config).run();
         }
     }
+}
+
+fn print_stats(stats: &Stats) {
+    println!(
+        "{}/{} {}% - {}s - Radius: {} ({}/{})",
+        stats.total_successes,
+        stats.total_attempts,
+        (100.0 * ((stats.total_successes as f32) / (stats.total_attempts as f32))) as u32,
+        stats.elapsed.as_secs(),
+        stats.radius,
+        stats.radius_successes,
+        stats.radius_attempts,
+    );
 }
