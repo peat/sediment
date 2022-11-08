@@ -95,7 +95,7 @@ impl Builder {
                 self.stats.delta = self.reference.delta(&self.current.img);
                 self.stats.elapsed = Instant::now() - start_time;
 
-                self.send_update(self.stats.clone());
+                self.send_update(self.stats);
                 last_update = Instant::now();
             }
 
@@ -125,7 +125,7 @@ impl Builder {
                 self.stats.radius_success_rate = radius_success_rate.rate().unwrap_or_default();
                 self.stats.delta = self.reference.delta(&self.current.img);
                 self.stats.elapsed = Instant::now() - start_time;
-                self.send_update(self.stats.clone());
+                self.send_update(self.stats);
 
                 self.current.save(&self.config.output);
 

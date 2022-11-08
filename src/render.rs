@@ -1,8 +1,4 @@
-use crate::{
-    builder::{Circle, Region},
-    simage::SImage,
-    RenderConfig,
-};
+use crate::{builder::Circle, simage::SImage, RenderConfig};
 use csv::Reader;
 use image::Rgba;
 use std::io::Write;
