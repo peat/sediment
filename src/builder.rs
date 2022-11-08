@@ -193,7 +193,7 @@ impl Builder {
 
             // if candidate is closer to the reference than the current best, promote it to current!
             if candidate_delta < current_delta {
-                // copy the candidate crop into the current image
+                // copy the candidate crop into the current image; marginally faster than just redrawing on the image
                 self.current
                     .img
                     .copy_from(
