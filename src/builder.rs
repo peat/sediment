@@ -16,6 +16,23 @@ pub struct Circle {
     pub b: u8,
 }
 
+impl Circle {
+    pub fn new(x: u32, y: u32, radius: u32, color: Rgba<u8>) -> Self {
+        let r = color.0[0];
+        let g = color.0[1];
+        let b = color.0[2];
+
+        Self {
+            x,
+            y,
+            radius,
+            r,
+            g,
+            b,
+        }
+    }
+}
+
 pub enum BuilderUpdate {
     Preview(image::DynamicImage),
     Stats(Stats),
@@ -204,14 +221,7 @@ impl Builder {
                     .unwrap();
 
                 // create and save the circle
-                let circle = Circle {
-                    x: center_x,
-                    y: center_y,
-                    radius: self.stats.radius,
-                    r: reference_color.0[0],
-                    g: reference_color.0[1],
-                    b: reference_color.0[2],
-                };
+                let circle = Circle::new(center_x, center_y, self.stats.radius, reference_color);
                 self.circles.push(circle);
 
                 radius_success_rate.sample(1);
