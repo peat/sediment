@@ -13,6 +13,7 @@ impl Canvas {
     pub fn new(width: u32, height: u32) -> Self {
         let mut img = DynamicImage::new_rgba8(width, height);
 
+        // make our new image black
         for pixel in img.as_mut_rgba8().unwrap().pixels_mut() {
             *pixel = Rgba([0, 0, 0, 255]);
         }
