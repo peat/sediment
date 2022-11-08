@@ -1,10 +1,8 @@
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
-use crate::gui::MainWindowInput;
-use crate::{rate_meter::RateMeter, BuildConfig, SImage};
+use crate::{rate_meter::RateMeter, BuildConfig, Canvas};
 use image::{GenericImage, Rgba};
-use imageproc::drawing::Canvas;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
@@ -16,6 +14,11 @@ pub struct Circle {
     pub r: u8,
     pub g: u8,
     pub b: u8,
+}
+
+pub enum BuilderUpdate {
+    Preview(image::DynamicImage),
+    Stats(Stats),
 }
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -38,23 +41,23 @@ pub struct Stats {
 }
 
 pub struct Builder {
-    reference: SImage,
-    current: SImage,
+    reference: Canvas,
+    current: Canvas,
     config: BuildConfig,
-    tx: Sender<MainWindowInput>,
+    tx: Sender<BuilderUpdate>,
     circles: Vec<Circle>,
     stats: Stats,
 }
 
 impl Builder {
-    pub fn new(tx: Sender<MainWindowInput>, config: BuildConfig) -> Self {
-        let reference = SImage::open(&config.input).unwrap();
+    pub fn new(tx: Sender<BuilderUpdate>, config: BuildConfig) -> Self {
+        let reference = Canvas::open(&config.input).unwrap();
         let width = reference.width();
         let height = reference.height();
 
         Self {
             reference,
-            current: SImage::new(width, height),
+            current: Canvas::new(width, height),
             config,
             tx,
             circles: vec![],
@@ -64,10 +67,10 @@ impl Builder {
 
     pub fn send_update(&mut self, stats: Stats) {
         self.tx
-            .send(MainWindowInput::Preview(self.current.img.clone()))
+            .send(BuilderUpdate::Preview(self.current.img.clone()))
             .unwrap();
 
-        self.tx.send(MainWindowInput::Stats(stats)).unwrap();
+        self.tx.send(BuilderUpdate::Stats(stats)).unwrap();
     }
 
     pub fn run(&mut self) {
@@ -77,7 +80,7 @@ impl Builder {
         let point_selector = PointSelector::new(&self.reference);
 
         // tracks the success rate for the current radius
-        let mut radius_success_rate = RateMeter::new(25);
+        let mut radius_success_rate = RateMeter::new(50);
 
         // tracks when the last update message was sent from the builder
         let mut last_update = Instant::now();
@@ -127,7 +130,9 @@ impl Builder {
                 self.stats.elapsed = Instant::now() - start_time;
                 self.send_update(self.stats);
 
-                self.current.save(&self.config.output);
+                if let Some(img_path) = &self.config.output {
+                    self.current.save(img_path);
+                }
 
                 if let Some(raw_path) = &self.config.raw {
                     let mut writer = csv::Writer::from_path(raw_path).unwrap();
@@ -174,7 +179,7 @@ impl Builder {
             // work from a crop of the current best image
             let mut candidate_crop = current_crop.clone();
 
-            // let's draw a circle! Refactor me because this is kinda gross.
+            // let's draw a circle!
             imageproc::drawing::draw_filled_circle_mut(
                 &mut candidate_crop.img,
                 (candidate_crop.center_x, candidate_crop.center_y),
@@ -191,18 +196,22 @@ impl Builder {
                 // copy the candidate crop into the current image
                 self.current
                     .img
-                    .copy_from(&candidate_crop.img, region.abs_x(), region.abs_y())
+                    .copy_from(
+                        &candidate_crop.img,
+                        region.real_origin_x(),
+                        region.real_origin_y(),
+                    )
                     .unwrap();
 
+                // create and save the circle
                 let circle = Circle {
                     x: center_x,
                     y: center_y,
                     radius: self.stats.radius,
-                    r: current_color.0[0],
-                    g: current_color.0[1],
-                    b: current_color.0[2],
+                    r: reference_color.0[0],
+                    g: reference_color.0[1],
+                    b: reference_color.0[2],
                 };
-
                 self.circles.push(circle);
 
                 radius_success_rate.sample(1);
@@ -221,7 +230,7 @@ struct PointSelector {
 }
 
 impl PointSelector {
-    pub fn new(image_set: &SImage) -> Self {
+    pub fn new(image_set: &Canvas) -> Self {
         Self {
             width: image_set.width(),
             height: image_set.height(),
@@ -266,7 +275,7 @@ impl Region {
         }
     }
 
-    pub fn abs_x(&self) -> u32 {
+    pub fn real_origin_x(&self) -> u32 {
         if self.min_x < 0 {
             0
         } else {
@@ -274,7 +283,7 @@ impl Region {
         }
     }
 
-    pub fn abs_y(&self) -> u32 {
+    pub fn real_origin_y(&self) -> u32 {
         if self.min_y < 0 {
             0
         } else {
@@ -282,19 +291,20 @@ impl Region {
         }
     }
 
-    pub fn abs_width(&self) -> u32 {
-        (self.max_x as u32) - self.abs_x()
+    pub fn real_width(&self) -> u32 {
+        (self.max_x as u32) - self.real_origin_x()
     }
 
-    pub fn abs_height(&self) -> u32 {
-        (self.max_y as u32) - self.abs_y()
+    pub fn real_height(&self) -> u32 {
+        (self.max_y as u32) - self.real_origin_y()
     }
 }
 
 pub struct ColorPicker {}
 
 impl ColorPicker {
-    pub fn sample(image_set: &SImage, x: u32, y: u32) -> Rgba<u8> {
+    pub fn sample(image_set: &Canvas, x: u32, y: u32) -> Rgba<u8> {
+        use imageproc::drawing::Canvas; // namespace collision for get_pixel
         image_set.img.get_pixel(x, y)
     }
 }

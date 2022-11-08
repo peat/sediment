@@ -1,9 +1,10 @@
 use std::sync::mpsc::Receiver;
 
+use crate::builder::BuilderUpdate;
 use eframe::{egui, epaint::ColorImage, App, CreationContext, NativeOptions};
 use image::DynamicImage;
 
-pub fn run(rx: Receiver<MainWindowInput>) {
+pub fn run(rx: Receiver<BuilderUpdate>) {
     let options = NativeOptions {
         follow_system_theme: true,
         ..Default::default()
@@ -16,20 +17,15 @@ pub fn run(rx: Receiver<MainWindowInput>) {
     );
 }
 
-pub enum MainWindowInput {
-    Preview(image::DynamicImage),
-    Stats(crate::builder::Stats),
-}
-
 pub struct MainWindow {
-    rx: Receiver<MainWindowInput>,
+    rx: Receiver<BuilderUpdate>,
     preview_texture: Option<egui::TextureHandle>,
     preview_image: ColorImage,
     stats_line: String,
 }
 
 impl MainWindow {
-    pub fn new(_creation_context: &CreationContext<'_>, rx: Receiver<MainWindowInput>) -> Self {
+    pub fn new(_creation_context: &CreationContext<'_>, rx: Receiver<BuilderUpdate>) -> Self {
         Self {
             rx,
             preview_image: egui::ColorImage::example(),
@@ -61,8 +57,8 @@ impl App for MainWindow {
         // handle any messages that may have come in from the builder
         if let Ok(input) = self.rx.try_recv() {
             match input {
-                MainWindowInput::Preview(new_preview) => self.handle_new_preview(new_preview),
-                MainWindowInput::Stats(s) => self.stats_line = format!("{:?}", s),
+                BuilderUpdate::Preview(new_preview) => self.handle_new_preview(new_preview),
+                BuilderUpdate::Stats(s) => self.stats_line = format!("{:?}", s),
             }
         }
 

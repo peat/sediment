@@ -1,13 +1,13 @@
 use std::thread;
 
 mod builder;
+mod canvas;
 mod gui;
 mod rate_meter;
 mod render;
-mod simage;
 
-use builder::Builder;
-use simage::SImage;
+use builder::{Builder, BuilderUpdate};
+use canvas::Canvas;
 use std::sync::mpsc::channel;
 
 use clap::{Args, Parser, Subcommand};
@@ -34,14 +34,14 @@ pub struct BuildConfig {
 
     /// Path to the output image file (will overwrite)
     #[arg(short = 'o', long)]
-    output: String,
+    output: Option<String>,
 
     /// Path to the raw output file (will overwrite)
     #[arg(short = 'x', long)]
     raw: Option<String>,
 
     /// Maximum radius of the shapes to be placed
-    #[arg(short = 'r', long, default_value_t = 1000)]
+    #[arg(short = 'r', long, default_value_t = 500)]
     max_radius: u32,
 
     /// Minimum radius of the shapes to be placed
@@ -104,7 +104,7 @@ fn main() {
             } else {
                 loop {
                     match main_window_rx.recv() {
-                        Ok(gui::MainWindowInput::Stats(stats)) => println!("{:?}", stats),
+                        Ok(BuilderUpdate::Stats(stats)) => println!("{:?}", stats),
                         Ok(_) => continue,
                         Err(_) => return,
                     }

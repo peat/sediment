@@ -3,13 +3,13 @@ use image::{DynamicImage, GenericImageView, Rgba};
 use crate::builder::Region;
 
 #[derive(Clone)]
-pub struct SImage {
+pub struct Canvas {
     pub center_x: i32,
     pub center_y: i32,
     pub img: DynamicImage,
 }
 
-impl SImage {
+impl Canvas {
     pub fn new(width: u32, height: u32) -> Self {
         let mut img = DynamicImage::new_rgba8(width, height);
 
@@ -42,11 +42,11 @@ impl SImage {
         self.img.height()
     }
 
-    pub fn section(&self, region: &Region) -> SImage {
-        let x = region.abs_x();
-        let y = region.abs_y();
-        let width = region.abs_width();
-        let height = region.abs_height();
+    pub fn section(&self, region: &Region) -> Canvas {
+        let x = region.real_origin_x();
+        let y = region.real_origin_y();
+        let width = region.real_width();
+        let height = region.real_height();
 
         let img = self.img.crop_imm(x, y, width, height);
         let mut center_x = region.radius as i32;

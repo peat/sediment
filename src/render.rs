@@ -1,4 +1,4 @@
-use crate::{builder::Circle, simage::SImage, RenderConfig};
+use crate::{builder::Circle, canvas::Canvas, RenderConfig};
 use csv::Reader;
 use image::Rgba;
 use std::io::Write;
@@ -95,7 +95,7 @@ impl Render {
     fn png(&self, path: &str) {
         let width = self.find_width();
         let height = self.find_height();
-        let mut output = SImage::new(width, height);
+        let mut output = Canvas::new(width, height);
 
         for circle in &self.circles {
             let color = Rgba::from([circle.r, circle.g, circle.b, 255]);
