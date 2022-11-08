@@ -122,7 +122,7 @@ fn main() {
 
 fn print_stats(stats: &Stats) {
     println!(
-        "{}/{} {}% - {}s - Radius: {} ({}/{})",
+        "{}/{} {}% - {}s - Radius: {} ({}/{} {}%)",
         stats.total_successes,
         stats.total_attempts,
         (100.0 * ((stats.total_successes as f32) / (stats.total_attempts as f32))) as u32,
@@ -130,5 +130,6 @@ fn print_stats(stats: &Stats) {
         stats.radius,
         stats.radius_successes,
         stats.radius_attempts,
+        (100.0 * ((stats.radius_successes as f32) / (stats.radius_attempts as f32))) as u32,
     );
 }

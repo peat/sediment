@@ -96,10 +96,7 @@ impl Builder {
         let mut point_selector = RandomPointSelector::new(&self.reference);
 
         // tracks the success rate for the current radius
-        let mut radius_success_rate = RateMeter::new(50);
-
-        // tracks when the last update message was sent from the builder
-        let mut last_update = Instant::now();
+        let mut radius_success_rate = RateMeter::new(25);
 
         // start with our max radius, woo!
         self.stats.radius = self.config.max_radius;
@@ -108,20 +105,16 @@ impl Builder {
             self.stats.total_attempts += 1;
             self.stats.radius_attempts += 1;
 
-            // if we haven't sent an update in X milliseconds, send one.
-            if (Instant::now() - last_update) > Duration::from_millis(20) {
-                self.stats.radius_success_rate = radius_success_rate.rate().unwrap_or_default();
-                self.stats.delta = self.reference.delta(&self.current.img);
-                self.stats.elapsed = Instant::now() - start_time;
-
-                self.send_update(self.stats);
-                last_update = Instant::now();
-            }
-
             // examine the success rate to determine if we need to adjust our radius
             if radius_success_rate.is_below(self.config.radius_shrink_threshold)
                 || (self.stats.radius_attempts > self.config.radius_attempt_limit)
             {
+                // report stats
+                self.stats.radius_success_rate = radius_success_rate.rate().unwrap_or_default();
+                self.stats.delta = self.reference.delta(&self.current.img);
+                self.stats.elapsed = Instant::now() - start_time;
+                self.send_update(self.stats);
+
                 // reset our success rate calculator
                 radius_success_rate.reset();
 
@@ -136,16 +129,12 @@ impl Builder {
                     int_step = 1;
                 }
 
+                // adjust our radius
                 self.stats.radius -= int_step;
             }
 
             // if our radius hits the threshold we're done! Send the last update, write out the image, and return.
             if self.stats.radius < self.config.min_radius {
-                self.stats.radius_success_rate = radius_success_rate.rate().unwrap_or_default();
-                self.stats.delta = self.reference.delta(&self.current.img);
-                self.stats.elapsed = Instant::now() - start_time;
-                self.send_update(self.stats);
-
                 if let Some(img_path) = &self.config.output {
                     self.current.save(img_path);
                 }
@@ -168,10 +157,11 @@ impl Builder {
             let reference_color = ColorPicker::sample(&self.reference, center_x, center_y);
             let current_color = ColorPicker::sample(&self.current, center_x, center_y);
 
-            // if reference pixel is the same as the current pixel, then skip ahead
+            // if reference pixel is the same as the current pixel, then skip ahead; don't count
+            // this as a miss
             if reference_color == current_color {
-                self.stats.total_skips += 1;
-                radius_success_rate.sample(0);
+                // self.stats.total_skips += 1;
+                // radius_success_rate.sample(0);
                 continue;
             }
 
