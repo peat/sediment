@@ -1,9 +1,8 @@
 use std::sync::mpsc::Sender;
 use std::time::{Duration, Instant};
 
-use crate::{rate_meter::RateMeter, BuildConfig, Canvas};
+use crate::{point_selector::RandomPointSelector, rate_meter::RateMeter, BuildConfig, Canvas};
 use image::{GenericImage, Rgba};
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
@@ -94,7 +93,7 @@ impl Builder {
         let start_time = Instant::now();
 
         // generates points to examine for shape placement
-        let point_selector = PointSelector::new(&self.reference);
+        let mut point_selector = RandomPointSelector::new(&self.reference);
 
         // tracks the success rate for the current radius
         let mut radius_success_rate = RateMeter::new(50);
@@ -162,8 +161,9 @@ impl Builder {
             }
 
             // Picks the CENTER POINT of the region to be examined. This allows us to draw shapes that overlap
-            // the edges of the image.
-            let (center_x, center_y) = point_selector.point();
+            // the edges of the image. The random point selector always returns Some() so unwrap()
+            // is safe here ... unlike everywhere else, haha.
+            let (center_x, center_y) = point_selector.next().unwrap();
 
             let reference_color = ColorPicker::sample(&self.reference, center_x, center_y);
             let current_color = ColorPicker::sample(&self.current, center_x, center_y);
@@ -231,29 +231,6 @@ impl Builder {
                 radius_success_rate.sample(0);
             }
         }
-    }
-}
-
-struct PointSelector {
-    width: u32,
-    height: u32,
-}
-
-impl PointSelector {
-    pub fn new(image_set: &Canvas) -> Self {
-        Self {
-            width: image_set.width(),
-            height: image_set.height(),
-        }
-    }
-
-    pub fn point(&self) -> (u32, u32) {
-        let mut rng = rand::thread_rng();
-
-        let x = rng.gen_range(0..self.width);
-        let y = rng.gen_range(0..self.height);
-
-        (x, y)
     }
 }
 

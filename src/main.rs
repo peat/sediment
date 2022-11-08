@@ -3,6 +3,7 @@ use std::thread;
 mod builder;
 mod canvas;
 mod gui;
+mod point_selector;
 mod rate_meter;
 mod render;
 

@@ -103,7 +103,7 @@ impl Canvas {
         }
     }
 
-    fn pixel_delta(a: Rgba<u8>, b: Rgba<u8>) -> usize {
+    pub fn pixel_delta(a: Rgba<u8>, b: Rgba<u8>) -> usize {
         let mut delta = 0;
 
         delta += Self::channel_delta(a[0], b[0]) as usize;
