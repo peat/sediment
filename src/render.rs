@@ -1,14 +1,19 @@
-use crate::{builder::Circle, SvgConfig};
+use crate::{
+    builder::{Circle, Region},
+    simage::SImage,
+    RenderConfig,
+};
 use csv::Reader;
+use image::Rgba;
 use std::io::Write;
 
-pub struct Svg {
-    config: SvgConfig,
+pub struct Render {
+    config: RenderConfig,
     circles: Vec<Circle>,
 }
 
-impl Svg {
-    pub fn new(config: SvgConfig) -> Self {
+impl Render {
+    pub fn new(config: RenderConfig) -> Self {
         let mut csv = Reader::from_path(&config.input).unwrap();
         let mut circles = vec![];
 
@@ -54,8 +59,18 @@ impl Svg {
         format!("#{:02x?}{:02x?}{:02x?}", circle.r, circle.g, circle.b)
     }
 
-    pub fn run(&mut self) {
-        let mut output_file = std::fs::File::create(&self.config.output).unwrap();
+    pub fn run(&self) {
+        if let Some(path) = &self.config.svg {
+            self.svg(path);
+        }
+
+        if let Some(path) = &self.config.png {
+            self.png(path);
+        }
+    }
+
+    fn svg(&self, path: &str) {
+        let mut output_file = std::fs::File::create(path).unwrap();
 
         let mut output = vec![];
         let width = self.find_width();
@@ -79,5 +94,24 @@ impl Svg {
         output.push("</svg>".to_owned());
 
         output_file.write_all(output.join("\n").as_bytes()).unwrap();
+    }
+
+    fn png(&self, path: &str) {
+        let width = self.find_width();
+        let height = self.find_height();
+        let mut output = SImage::new(width, height);
+
+        for circle in &self.circles {
+            let color = Rgba::from([circle.r, circle.g, circle.b, 255]);
+
+            imageproc::drawing::draw_filled_circle_mut(
+                &mut output.img,
+                (circle.x as i32, circle.y as i32),
+                circle.radius as i32,
+                color,
+            );
+        }
+
+        output.save(path);
     }
 }

@@ -3,8 +3,8 @@ use std::thread;
 mod builder;
 mod gui;
 mod rate_meter;
+mod render;
 mod simage;
-mod svg;
 
 use builder::Builder;
 use simage::SImage;
@@ -23,7 +23,7 @@ pub enum Command {
     /// Build a sediment image from an image file
     Build(BuildConfig),
     /// Render a sediment file to an image file
-    Svg(SvgConfig),
+    Render(RenderConfig),
 }
 
 #[derive(Args, Clone, Debug)]
@@ -70,14 +70,18 @@ pub struct BuildConfig {
 }
 
 #[derive(Args, Clone, Debug)]
-pub struct SvgConfig {
+pub struct RenderConfig {
     /// Path to the input .smt file
     #[arg(short = 'i', long)]
     input: String,
 
-    /// Path to the output image file (will overwrite)
-    #[arg(short = 'o', long)]
-    output: String,
+    /// Path to the output SVG file (will overwrite)
+    #[arg(short = 's', long)]
+    svg: Option<String>,
+
+    /// Path to the output PNG file (will overwrite)
+    #[arg(short = 'p', long)]
+    png: Option<String>,
 }
 
 fn main() {
@@ -109,8 +113,8 @@ fn main() {
 
             handle.join().unwrap();
         }
-        Command::Svg(render_config) => {
-            crate::svg::Svg::new(render_config).run();
+        Command::Render(render_config) => {
+            crate::render::Render::new(render_config).run();
         }
     }
 }
