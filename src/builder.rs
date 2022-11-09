@@ -122,7 +122,7 @@ impl Builder {
                 self.stats.radius_attempts = 0;
                 self.stats.radius_successes = 0;
 
-                // step down radius 10%, and guard against tiny values
+                // step down radius, and guard against tiny values
                 let raw_step = (self.stats.radius as f32) * self.config.radius_step;
                 let mut int_step = raw_step as u32;
                 if raw_step < 1.0 {
