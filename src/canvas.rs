@@ -1,6 +1,6 @@
 use image::{DynamicImage, GenericImageView, Rgba};
 
-use crate::builder::Region;
+use crate::Region;
 
 #[derive(Clone)]
 pub struct Canvas {

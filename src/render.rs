@@ -1,4 +1,4 @@
-use crate::{builder::Circle, canvas::Canvas, RenderConfig};
+use crate::{Canvas, Circle, RenderConfig};
 use csv::Reader;
 use image::Rgba;
 use std::io::Write;

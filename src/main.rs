@@ -2,13 +2,18 @@ use std::thread;
 
 mod builder;
 mod canvas;
+mod circle;
 mod gui;
 mod point_selector;
 mod rate_meter;
+mod region;
 mod render;
 
+pub use canvas::Canvas;
+pub use circle::Circle;
+pub use region::Region;
+
 use builder::{Builder, BuilderUpdate, Stats};
-use canvas::Canvas;
 use std::sync::mpsc::channel;
 
 use clap::{Args, Parser, Subcommand};
