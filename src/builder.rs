@@ -70,7 +70,7 @@ impl Builder {
         let mut point_selector = RandomPointSelector::new(&self.reference);
 
         // tracks the success rate for the current radius
-        let mut radius_success_rate = RateMeter::new(25);
+        let mut radius_success_rate = RateMeter::new(100);
 
         // start with our max radius, woo!
         self.stats.radius = self.config.max_radius;
