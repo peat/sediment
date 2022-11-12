@@ -73,7 +73,7 @@ impl Render {
         let height = self.find_height();
 
         output.push(format!(
-            "<svg overflow=\"hidden\" viewBox=\"0 0 {} {}\" preserveAspectRatio=\"xMidYMid meet\" xmlns=\"http://www.w3.org/2000/svg\">",
+            "<svg id=\"sedimentSvg\" overflow=\"hidden\" viewBox=\"0 0 {} {}\" preserveAspectRatio=\"xMidYMid meet\" xmlns=\"http://www.w3.org/2000/svg\">",
             width, height
         ));
 

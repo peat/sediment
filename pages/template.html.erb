@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= title %> - Dot Art by Peat</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;800&display=swap");
+      svg {
+      }
+      circle {
+        display: none;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      #info {
+        border-bottom: 1px solid #000;
+        background-color: #456da8;
+        color: #fff;
+        font-family: "Noto Sans", sans-serif;
+        padding: 5px;
+        position: fixed;
+        top: 0;
+        width: 100%;
+      }
+      #title {
+        float: left;
+      }
+      #credit {
+        font-size: 10pt;
+        float: right;
+        margin-right: 10px;
+      }
+
+      #credit a {
+        color: #fff;
+      }
+    </style>
+
+    <script>
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+      async function render() {
+        var svg = document.getElementById("sedimentSvg");
+        var progress = document.getElementById("progress");
+        var counter = document.getElementById("counter");
+        var children = svg.children;
+        var max_radius = 0;
+        var delay = 25; // ms between rendering sets
+
+        // outer loop cycles through blocks of circles to display
+        for (var i = 0; i < children.length; i++) {
+          var circle = children[i];
+          if (i == 0) {
+            // sets our denominator for determining the number of circles to show
+            max_radius = circle.getAttribute("r");
+          }
+
+          var radius = circle.getAttribute("r");
+          var show_count = Math.round(max_radius / radius);
+
+          // inner loop displays the circles
+          for (; i < children.length && show_count != 0; i++) {
+            var circle = children[i];
+            circle.style.display = "block";
+            show_count--;
+          }
+
+          progress.innerHTML = Math.round((i / children.length) * 100);
+          counter.innerHTML = i;
+          await sleep(delay);
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="info">
+      <div id="title">
+        <b><%= title %></b> - <%= shape_count %> Dots (<span id="counter">0</span>,
+      <span id="progress">0</span>%)
+      </div>
+      <div id="credit">
+        &copy; 2022 <a href="mailto:peat@peat.org">Peat Bakke</a> |
+        <a href="https://twitter.com/peat">Twitter</a> |
+        <a href="https://mastodon.social/@peat">Mastodon</a>
+      </div>
+    </div>
+
+    <%= svg %>
+
+    <script>
+      (function () { render(); })();
+    </script>
+
+  </body>
+</html>
+

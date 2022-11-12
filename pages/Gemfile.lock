@@ -1,0 +1,19 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    cgi (0.3.3)
+    erb (3.0.0)
+      cgi (>= 0.3.3)
+    nokogiri (1.13.9-x86_64-linux)
+      racc (~> 1.4)
+    racc (1.6.0)
+
+PLATFORMS
+  x86_64-linux
+
+DEPENDENCIES
+  erb
+  nokogiri
+
+BUNDLED WITH
+   2.3.23
