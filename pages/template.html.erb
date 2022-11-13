@@ -13,6 +13,9 @@
         margin: 0;
         padding: 0;
       }
+      a {
+        color: #fff;
+      }
       #info {
         border-bottom: 1px solid #000;
         background-color: #456da8;
@@ -31,10 +34,6 @@
         float: right;
         margin-right: 10px;
       }
-
-      #credit a {
-        color: #fff;
-      }
     </style>
 
     <script>
@@ -45,31 +44,30 @@
         var svg = document.getElementById("sedimentSvg");
         var progress = document.getElementById("progress");
         var counter = document.getElementById("counter");
-        var children = svg.children;
+        var circles = svg.children;
+        var count = svg.children.length;
+        var pause_at = 0;
         var max_radius = 0;
         var delay = 25; // ms between rendering sets
 
-        // outer loop cycles through blocks of circles to display
-        for (var i = 0; i < children.length; i++) {
-          var circle = children[i];
-          if (i == 0) {
-            // sets our denominator for determining the number of circles to show
+        for (var idx = 0; idx < count; idx++) {
+          var circle = circles[idx];
+          circle.style.display = "block";
+
+          if (idx == 0) {
+            // sets our denominator for determining the number of circles to show before we pause
             max_radius = circle.getAttribute("r");
           }
 
-          var radius = circle.getAttribute("r");
-          var show_count = Math.round(max_radius / radius);
-
-          // inner loop displays the circles
-          for (; i < children.length && show_count != 0; i++) {
-            var circle = children[i];
-            circle.style.display = "block";
-            show_count--;
+          if (idx == pause_at) {
+            var radius = circle.getAttribute("r");
+            var show_count = Math.round(max_radius / radius);
+            pause_at += show_count;
+            await sleep(delay);
           }
 
-          progress.innerHTML = Math.round((i / children.length) * 100);
-          counter.innerHTML = i;
-          await sleep(delay);
+          progress.innerHTML = Math.round((idx / count) * 100);
+          counter.innerHTML = idx;
         }
       }
     </script>
@@ -77,7 +75,7 @@
   <body>
     <div id="info">
       <div id="title">
-        <b><%= title %></b> - <%= shape_count %> Dots (<span id="counter">0</span>,
+        <a href="https://peat.github.io/dotart">dotart</a> - <b><%= title %></b> - <%= shape_count %> Dots (<span id="counter">0</span>,
       <span id="progress">0</span>%)
       </div>
       <div id="credit">
