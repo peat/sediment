@@ -1,6 +1,21 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <!-- Google tag (gtag.js) -->
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-40171FZ0V8"
+    ></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+
+      gtag("config", "G-40171FZ0V8");
+    </script>
+
     <title><%= title %> - Dot Art by Peat</title>
     <style>
       @import url("https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;800&display=swap");
@@ -75,8 +90,10 @@
   <body>
     <div id="info">
       <div id="title">
-        <a href="https://peat.github.io/dotart">dotart</a> - <b><%= title %></b> - <%= shape_count %> Dots (<span id="counter">0</span>,
-      <span id="progress">0</span>%)
+        <a href="https://peat.github.io/dotart">dotart</a> -
+        <b><%= title %></b> - <%= shape_count %> Dots (<span id="counter"
+          >0</span
+        >, <span id="progress">0</span>%)
       </div>
       <div id="credit">
         &copy; 2022 <a href="mailto:peat@peat.org">Peat Bakke</a> |
@@ -88,9 +105,9 @@
     <%= svg %>
 
     <script>
-      (function () { render(); })();
+      (function () {
+        render();
+      })();
     </script>
-
   </body>
 </html>
-
