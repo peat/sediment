@@ -139,8 +139,6 @@ impl Builder {
             // if reference pixel is the same as the current pixel, then skip ahead; don't count
             // this as a miss
             if reference_color == current_color {
-                // self.stats.total_skips += 1;
-                // radius_success_rate.sample(0);
                 continue;
             }
 
