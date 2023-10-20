@@ -1,6 +1,6 @@
 use std::sync::mpsc::Receiver;
 
-use crate::builder::BuilderUpdate;
+use crate::builder::{BuilderUpdate, Stats};
 use eframe::{egui, epaint::ColorImage, App, CreationContext, NativeOptions};
 use image::DynamicImage;
 
@@ -48,6 +48,31 @@ impl MainWindow {
         self.preview_image = egui_img;
         self.preview_texture = None; // clear the texture so that update() knows to rebuild it.
     }
+
+    pub fn update_status(&mut self, stats: Stats) {
+        self.stats_line = format!(
+            "Attempts: {}, Shapes: {}, Current Radius: {}, Elapsed: {:?}",
+            stats.total_attempts, stats.total_successes, stats.radius, stats.elapsed,
+        );
+    }
+
+    pub fn fit_image_to_window(
+        image_width: f32,
+        image_height: f32,
+        window_width: f32,
+        window_height: f32,
+    ) -> (f32, f32) {
+        let aspect_ratio = image_width / image_height;
+        let mut new_width = window_width;
+        let mut new_height = new_width / aspect_ratio;
+
+        if new_height > window_height {
+            new_height = window_height;
+            new_width = new_height * aspect_ratio;
+        }
+
+        (new_width, new_height)
+    }
 }
 
 impl App for MainWindow {
@@ -58,7 +83,7 @@ impl App for MainWindow {
         if let Ok(input) = self.rx.try_recv() {
             match input {
                 BuilderUpdate::Preview(new_preview) => self.handle_new_preview(new_preview),
-                BuilderUpdate::Stats(s) => self.stats_line = format!("{:?}", s),
+                BuilderUpdate::Stats(s) => self.update_status(s),
             }
         }
 
@@ -82,11 +107,20 @@ impl App for MainWindow {
                 ui.ctx().load_texture(
                     "current-image",
                     self.preview_image.clone(),
-                    egui::TextureOptions::LINEAR,
+                    Default::default(),
                 )
             });
 
-            ui.image(texture);
+            // scale the image to fit the available space
+            let ui_size = ui.available_size();
+            let image_size = texture.size_vec2();
+
+            let (new_width, new_height) =
+                Self::fit_image_to_window(image_size.x, image_size.y, ui_size.x, ui_size.y);
+
+            let new_dimensions = egui::Vec2::new(new_width, new_height);
+
+            ui.image((texture.id(), new_dimensions));
         });
     }
 }
