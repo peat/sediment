@@ -4,6 +4,8 @@ use crate::builder::{BuilderUpdate, Stats};
 use eframe::{egui, epaint::ColorImage, App, CreationContext, NativeOptions};
 use image::DynamicImage;
 
+static PREVIEW_TEXTURE_ID: &str = "preview-image";
+
 pub fn run(rx: Receiver<BuilderUpdate>) {
     let options = NativeOptions {
         follow_system_theme: true,
@@ -51,8 +53,11 @@ impl MainWindow {
 
     pub fn update_status(&mut self, stats: Stats) {
         self.stats_line = format!(
-            "Attempts: {}, Shapes: {}, Current Radius: {}, Elapsed: {:?}",
-            stats.total_attempts, stats.total_successes, stats.radius, stats.elapsed,
+            "Attempts: {}, Shapes: {}, Current Radius: {}, Elapsed: {:.2}s",
+            stats.total_attempts,
+            stats.total_successes,
+            stats.radius,
+            stats.elapsed.as_secs_f32(),
         );
     }
 
@@ -79,6 +84,10 @@ impl App for MainWindow {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint(); // continuous repainting
 
+        if ctx.input(|i| i.key_released(egui::Key::Escape)) {
+            std::process::exit(0);
+        }
+
         // handle any messages that may have come in from the builder
         if let Ok(input) = self.rx.try_recv() {
             match input {
@@ -103,9 +112,8 @@ impl App for MainWindow {
         // main content
         egui::CentralPanel::default().show(ctx, |ui| {
             let texture: &egui::TextureHandle = self.preview_texture.get_or_insert_with(|| {
-                // Load the texture only once.
                 ui.ctx().load_texture(
-                    "current-image",
+                    PREVIEW_TEXTURE_ID,
                     self.preview_image.clone(),
                     Default::default(),
                 )

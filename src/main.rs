@@ -92,14 +92,14 @@ pub struct RenderConfig {
 
 fn main() {
     let config = Config::parse();
-    println!("{:?}", config);
 
     match config.command {
         Command::Build(build_config) => {
+            print_build_config(&build_config);
             let (builder_tx, main_window_rx) = channel();
             let use_gui = build_config.gui;
 
-            let handle = thread::spawn(move || {
+            thread::spawn(move || {
                 let mut builder = Builder::new(builder_tx, build_config);
                 builder.run();
             });
@@ -116,13 +116,15 @@ fn main() {
                     }
                 }
             }
-
-            handle.join().unwrap();
         }
         Command::Render(render_config) => {
             crate::render::Render::new(render_config).run();
         }
     }
+}
+
+fn print_build_config(config: &BuildConfig) {
+    println!("{:#?}", config);
 }
 
 fn print_stats(stats: &Stats) {

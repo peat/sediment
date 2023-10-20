@@ -37,6 +37,7 @@ pub struct Builder {
     tx: Sender<BuilderUpdate>,
     circles: Vec<Circle>,
     stats: Stats,
+    last_update: Instant,
 }
 
 impl Builder {
@@ -52,15 +53,20 @@ impl Builder {
             tx,
             circles: vec![],
             stats: Stats::default(),
+            last_update: Instant::now(),
         }
     }
 
-    pub fn send_update(&mut self, stats: Stats) {
-        self.tx
-            .send(BuilderUpdate::Preview(self.current.img.clone()))
-            .unwrap();
+    pub fn update_ui(&mut self) {
+        // update ten times per second
+        if self.last_update.elapsed() > Duration::from_millis(100) {
+            self.last_update = Instant::now();
+            self.tx
+                .send(BuilderUpdate::Preview(self.current.img.clone()))
+                .unwrap();
 
-        self.tx.send(BuilderUpdate::Stats(stats)).unwrap();
+            self.tx.send(BuilderUpdate::Stats(self.stats)).unwrap();
+        }
     }
 
     pub fn run(&mut self) {
@@ -87,7 +93,6 @@ impl Builder {
                 self.stats.radius_success_rate = radius_success_rate.rate().unwrap_or_default();
                 self.stats.delta = self.reference.delta(&self.current.img);
                 self.stats.elapsed = Instant::now() - start_time;
-                self.send_update(self.stats);
 
                 // reset our success rate calculator
                 radius_success_rate.reset();
@@ -191,6 +196,9 @@ impl Builder {
                 radius_success_rate.sample(1);
                 self.stats.radius_successes += 1;
                 self.stats.total_successes += 1;
+
+                // nice! update the UI
+                self.update_ui();
             } else {
                 radius_success_rate.sample(0);
             }
