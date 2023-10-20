@@ -10,7 +10,7 @@ pub fn run(rx: Receiver<BuilderUpdate>) {
         ..Default::default()
     };
 
-    eframe::run_native(
+    let _ = eframe::run_native(
         "Sediment",
         options,
         Box::new(|cc| Box::new(MainWindow::new(cc, rx))),
@@ -82,11 +82,11 @@ impl App for MainWindow {
                 ui.ctx().load_texture(
                     "current-image",
                     self.preview_image.clone(),
-                    egui::TextureFilter::Linear,
+                    egui::TextureOptions::LINEAR,
                 )
             });
 
-            ui.image(texture, ui.available_size());
+            ui.image(texture);
         });
     }
 }

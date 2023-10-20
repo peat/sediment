@@ -17,4 +17,4 @@ egui_extras = { version = "0", features = ["image"] }
 rand = "0"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
-csv = "1.1"
+csv = "1"
