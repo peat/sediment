@@ -112,7 +112,8 @@ impl Builder {
                 self.stats.radius -= int_step;
             }
 
-            // if our radius hits the threshold we're done! Send the last update, write out the image, and return.
+            // if our radius hits the threshold we're done! Send the last update,
+            // write out the image, and return.
             if self.stats.radius < self.config.min_radius {
                 if let Some(img_path) = &self.config.output {
                     self.current.save(img_path);
@@ -128,23 +129,25 @@ impl Builder {
                 return;
             }
 
-            // Picks the CENTER POINT of the region to be examined. This allows us to draw shapes that overlap
-            // the edges of the image. The random point selector always returns Some() so unwrap()
-            // is safe here ... unlike everywhere else, haha.
+            // Picks the CENTER POINT of the region to be examined. This allows
+            // us to draw shapes that overlap the edges of the image. The random
+            // point selector always returns Some() so unwrap() is safe here
+            // ... unlike everywhere else, haha.
             let (center_x, center_y) = point_selector.next().unwrap();
 
             let reference_color = ColorPicker::sample(&self.reference, center_x, center_y);
             let current_color = ColorPicker::sample(&self.current, center_x, center_y);
 
-            // if reference pixel is the same as the current pixel, then skip ahead; don't count
-            // this as a miss
+            // if reference pixel is the same as the current pixel, then skip
+            // ahead; don't count this as a miss
             if reference_color == current_color {
                 continue;
             }
 
             let region = Region::new(center_x, center_y, self.stats.radius);
 
-            // get the delta between the reference and the current; if it's within a certain threshold, skip modifying it
+            // get the delta between the reference and the current; if it's within
+            // a certain threshold, skip modifying it
             let reference_crop = self.reference.section(&region);
             let current_crop = self.current.section(&region);
 
@@ -175,9 +178,11 @@ impl Builder {
             let candidate_delta = reference_crop.delta(&candidate_crop.img);
             let current_delta = reference_crop.delta(&current_crop.img);
 
-            // if candidate is closer to the reference than the current best, promote it to current!
+            // if candidate is closer to the reference than the current best,
+            // promote it to current!
             if candidate_delta < current_delta {
-                // copy the candidate crop into the current image; marginally faster than just redrawing on the image
+                // copy the candidate crop into the current image; marginally faster
+                // than just redrawing on the image
                 self.current
                     .img
                     .copy_from(
