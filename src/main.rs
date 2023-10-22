@@ -4,6 +4,7 @@ mod builder;
 mod canvas;
 mod circle;
 mod gui;
+mod optimizer;
 mod point_selector;
 mod rate_meter;
 mod region;
