@@ -57,16 +57,29 @@ impl Builder {
         }
     }
 
+    pub fn send_updates(&mut self) {
+        self.tx
+            .send(BuilderUpdate::Preview(self.current.img.clone()))
+            .unwrap();
+
+        self.tx.send(BuilderUpdate::Stats(self.stats)).unwrap();
+    }
+
     pub fn update_ui(&mut self) {
         // update ten times per second
         if self.last_update.elapsed() > Duration::from_millis(100) {
             self.last_update = Instant::now();
-            self.tx
-                .send(BuilderUpdate::Preview(self.current.img.clone()))
-                .unwrap();
-
-            self.tx.send(BuilderUpdate::Stats(self.stats)).unwrap();
+            self.send_updates();
         }
+    }
+
+    fn radius_step_down(&self) -> u32 {
+        let raw_step = (self.stats.radius as f32) * self.config.radius_step;
+        let mut int_step = raw_step as u32;
+        if raw_step < 1.0 {
+            int_step = 1;
+        }
+        int_step
     }
 
     pub fn run(&mut self) {
@@ -82,13 +95,22 @@ impl Builder {
         self.stats.radius = self.config.max_radius;
 
         loop {
+            // UPDATE STATS AND ADJUST RADIUS --------------------------------------------------
+
             self.stats.total_attempts += 1;
             self.stats.radius_attempts += 1;
 
             // examine the success rate to determine if we need to adjust our radius
             if radius_success_rate.is_below(self.config.radius_shrink_threshold)
-                && (self.stats.radius_attempts > self.config.radius_attempt_limit)
+                || (self.stats.radius_attempts >= self.config.radius_attempt_limit)
             {
+                eprint!(
+                    "Success rate: {} ({} attempts, {} limit)",
+                    self.stats.radius_success_rate,
+                    self.stats.radius_attempts,
+                    self.config.radius_attempt_limit
+                );
+
                 // report stats
                 self.stats.radius_success_rate = radius_success_rate.rate().unwrap_or_default();
                 self.stats.delta = self.reference.delta(&self.current.img);
@@ -101,20 +123,15 @@ impl Builder {
                 self.stats.radius_attempts = 0;
                 self.stats.radius_successes = 0;
 
-                // step down radius, and guard against tiny values
-                let raw_step = (self.stats.radius as f32) * self.config.radius_step;
-                let mut int_step = raw_step as u32;
-                if raw_step < 1.0 {
-                    int_step = 1;
-                }
-
                 // adjust our radius
-                self.stats.radius -= int_step;
+                self.stats.radius -= self.radius_step_down();
+                eprintln!(" ... new radius: {}", self.stats.radius);
             }
 
             // if our radius hits the threshold we're done! Send the last update,
             // write out the image, and return.
             if self.stats.radius < self.config.min_radius {
+                self.send_updates();
                 if let Some(img_path) = &self.config.output {
                     self.current.save(img_path);
                 }
@@ -128,6 +145,8 @@ impl Builder {
 
                 return;
             }
+
+            // ATTEMPT A NEW CIRCLE ------------------------------------------------------------
 
             // Picks the CENTER POINT of the region to be examined. This allows
             // us to draw shapes that overlap the edges of the image. The random
@@ -167,12 +186,15 @@ impl Builder {
             let mut candidate_crop = current_crop.clone();
 
             // let's draw a circle!
-            imageproc::drawing::draw_filled_circle_mut(
-                &mut candidate_crop.img,
-                (candidate_crop.center_x, candidate_crop.center_y),
-                self.stats.radius as i32,
+            let circle = Circle::new(
+                candidate_crop.center_x as u32,
+                candidate_crop.center_y as u32,
+                self.stats.radius,
                 reference_color,
             );
+
+            // draw the circle on the candidate crop
+            candidate_crop.draw_circle(&circle);
 
             // check the deltas from that region
             let candidate_delta = reference_crop.delta(&candidate_crop.img);
