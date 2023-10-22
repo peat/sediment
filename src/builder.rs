@@ -131,11 +131,15 @@ impl Builder {
             // if our radius hits the threshold we're done! Send the last update,
             // write out the image, and return.
             if self.stats.radius < self.config.min_radius {
+                // send the last update to the GUI
                 self.send_updates();
+
+                // write out the image if specified
                 if let Some(img_path) = &self.config.output {
                     self.current.save(img_path);
                 }
 
+                // write out the raw data if specified
                 if let Some(raw_path) = &self.config.raw {
                     let mut writer = csv::Writer::from_path(raw_path).unwrap();
                     for c in &self.circles {
