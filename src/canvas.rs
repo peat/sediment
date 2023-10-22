@@ -1,6 +1,6 @@
 use image::{DynamicImage, GenericImageView, Rgba};
 
-use crate::Region;
+use crate::{Circle, Region};
 
 #[derive(Clone)]
 pub struct Canvas {
@@ -115,6 +115,17 @@ impl Canvas {
             }
         }
         true
+    }
+
+    pub fn draw_circle(&mut self, circle: &Circle) {
+        let color = Rgba::from([circle.r, circle.g, circle.b, 255]);
+
+        imageproc::drawing::draw_filled_circle_mut(
+            &mut self.img,
+            (circle.x as i32, circle.y as i32),
+            circle.radius as i32,
+            color,
+        );
     }
 
     pub fn save(&self, path: &str) {
