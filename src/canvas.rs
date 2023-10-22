@@ -118,6 +118,15 @@ impl Canvas {
             .sum()
     }
 
+    pub fn is_equal(&self, other: &Canvas) -> bool {
+        for (a, b) in std::iter::zip(self.img.as_bytes(), other.img.as_bytes()) {
+            if a != b {
+                return false;
+            }
+        }
+        true
+    }
+
     pub fn save(&self, path: &str) {
         self.img.save(path).unwrap();
     }

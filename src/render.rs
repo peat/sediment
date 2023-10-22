@@ -1,4 +1,4 @@
-use crate::{Canvas, Circle, RenderConfig};
+use crate::{optimizer::Optimizer, Canvas, Circle, RenderConfig};
 use csv::Reader;
 use image::Rgba;
 use std::io::Write;
@@ -9,6 +9,32 @@ pub struct Render {
 }
 
 impl Render {
+    pub fn image_width(circles: &[Circle]) -> u32 {
+        let mut max = 0;
+
+        for c in circles {
+            let new_x = c.x + c.radius;
+            if new_x > max {
+                max = new_x;
+            }
+        }
+
+        max
+    }
+
+    fn image_height(circles: &[Circle]) -> u32 {
+        let mut max = 0;
+
+        for c in circles {
+            let new_y = c.y + c.radius;
+            if new_y > max {
+                max = new_y;
+            }
+        }
+
+        max
+    }
+
     pub fn new(config: RenderConfig) -> Self {
         let mut csv = Reader::from_path(&config.input).unwrap();
         let mut circles = vec![];
@@ -27,59 +53,37 @@ impl Render {
         Self { config, circles }
     }
 
-    fn find_height(&self) -> u32 {
-        let mut max = 0;
-
-        for c in &self.circles {
-            let new_y = c.y + c.radius;
-            if new_y > max {
-                max = new_y;
-            }
-        }
-
-        max
-    }
-
-    fn find_width(&self) -> u32 {
-        let mut max = 0;
-
-        for c in &self.circles {
-            let new_x = c.x + c.radius;
-            if new_x > max {
-                max = new_x;
-            }
-        }
-
-        max
-    }
-
     fn hex_color(circle: &Circle) -> String {
         format!("#{:02x?}{:02x?}{:02x?}", circle.r, circle.g, circle.b)
     }
 
     pub fn run(&self) {
+        println!("Opened {} circles", self.circles.len());
+        println!("Pruning circles...");
+        let optimizer = Optimizer::new(self.circles.clone());
+        let pruned_circles = optimizer.prune();
+        println!("Pruned to {} circles", pruned_circles.len());
+
         if let Some(path) = &self.config.svg {
-            self.svg(path);
+            Self::svg_to_file(&pruned_circles, path);
         }
 
         if let Some(path) = &self.config.png {
-            self.png(path);
+            Self::png_to_file(&pruned_circles, path);
         }
     }
 
-    fn svg(&self, path: &str) {
-        let mut output_file = std::fs::File::create(path).unwrap();
-
+    pub fn render_svg(circles: &[Circle]) -> String {
         let mut output = vec![];
-        let width = self.find_width();
-        let height = self.find_height();
+        let width = Self::image_width(circles);
+        let height = Self::image_height(circles);
 
         output.push(format!(
             "<svg id=\"sedimentSvg\" overflow=\"hidden\" viewBox=\"0 0 {} {}\" preserveAspectRatio=\"xMidYMid meet\" xmlns=\"http://www.w3.org/2000/svg\">",
             width, height
         ));
 
-        for c in &self.circles {
+        for c in circles {
             output.push(format!(
                 "\t<circle cx=\"{}\" cy=\"{}\" r=\"{}\" fill=\"{}\" />",
                 c.x,
@@ -90,26 +94,43 @@ impl Render {
         }
 
         output.push("</svg>".to_owned());
-
-        output_file.write_all(output.join("\n").as_bytes()).unwrap();
+        output.join("\n")
     }
 
-    fn png(&self, path: &str) {
-        let width = self.find_width();
-        let height = self.find_height();
-        let mut output = Canvas::new(width, height);
+    fn svg_to_file(circles: &[Circle], path: &str) {
+        let mut output_file = std::fs::File::create(path).unwrap();
+        let raw_svg = Self::render_svg(circles);
+        output_file.write_all(raw_svg.as_bytes()).unwrap();
+    }
 
-        for circle in &self.circles {
-            let color = Rgba::from([circle.r, circle.g, circle.b, 255]);
+    pub fn render_raster(circles: &[Circle]) -> Canvas {
+        let mut output = Self::create_empty_canvas(circles);
 
-            imageproc::drawing::draw_filled_circle_mut(
-                &mut output.img,
-                (circle.x as i32, circle.y as i32),
-                circle.radius as i32,
-                color,
-            );
+        for circle in circles {
+            Self::add_raster_circle(&mut output, circle);
         }
 
-        output.save(path);
+        output
+    }
+
+    pub fn create_empty_canvas(circles: &[Circle]) -> Canvas {
+        let width = Self::image_width(circles);
+        let height = Self::image_height(circles);
+        Canvas::new(width, height)
+    }
+
+    pub fn add_raster_circle(canvas: &mut Canvas, circle: &Circle) {
+        let color = Rgba::from([circle.r, circle.g, circle.b, 255]);
+
+        imageproc::drawing::draw_filled_circle_mut(
+            &mut canvas.img,
+            (circle.x as i32, circle.y as i32),
+            circle.radius as i32,
+            color,
+        );
+    }
+
+    fn png_to_file(circles: &[Circle], path: &str) {
+        Self::render_raster(circles).save(path);
     }
 }
