@@ -92,7 +92,7 @@ impl Builder {
                 // report stats
                 self.stats.radius_success_rate = radius_success_rate.rate().unwrap_or_default();
                 self.stats.delta = self.reference.delta(&self.current.img);
-                self.stats.elapsed = Instant::now() - start_time;
+                self.stats.elapsed = start_time.elapsed();
 
                 // reset our success rate calculator
                 radius_success_rate.reset();
@@ -121,7 +121,7 @@ impl Builder {
 
                 if let Some(raw_path) = &self.config.raw {
                     let mut writer = csv::Writer::from_path(raw_path).unwrap();
-                    for c in self.circles.iter() {
+                    for c in &self.circles {
                         writer.serialize(c).unwrap();
                     }
                 }

@@ -85,7 +85,7 @@ impl Canvas {
         value
     }
 
-    pub fn pixel_value(a: Rgba<u8>) -> usize {
+    fn pixel_value(a: Rgba<u8>) -> usize {
         let mut value: usize = 0;
 
         value += a[0] as usize;

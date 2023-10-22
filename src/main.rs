@@ -1,4 +1,4 @@
-use std::thread;
+#![warn(clippy::all)]
 
 mod builder;
 mod canvas;
@@ -16,6 +16,7 @@ pub use region::Region;
 
 use builder::{Builder, BuilderUpdate, Stats};
 use std::sync::mpsc::channel;
+use std::thread;
 
 use clap::{Args, Parser, Subcommand};
 
