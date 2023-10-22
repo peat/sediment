@@ -31,8 +31,9 @@ impl Render {
         let mut max = 0;
 
         for c in &self.circles {
-            if c.y > max {
-                max = c.y;
+            let new_y = c.y + c.radius;
+            if new_y > max {
+                max = new_y;
             }
         }
 
@@ -43,8 +44,9 @@ impl Render {
         let mut max = 0;
 
         for c in &self.circles {
-            if c.x > max {
-                max = c.x;
+            let new_x = c.x + c.radius;
+            if new_x > max {
+                max = new_x;
             }
         }
 
