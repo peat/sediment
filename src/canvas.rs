@@ -112,9 +112,17 @@ impl Canvas {
         delta
     }
 
+    pub fn byte_delta(a: u8, b: u8) -> usize {
+        if a >= b {
+            (a - b) as usize
+        } else {
+            (b - a) as usize
+        }
+    }
+
     pub fn delta(&self, img: &DynamicImage) -> usize {
-        std::iter::zip(self.img.pixels(), img.pixels())
-            .map(|(a, b)| Self::pixel_delta(a.2, b.2)) // 0 and 1 are coordinates; 2 is the pixel
+        std::iter::zip(self.img.as_bytes(), img.as_bytes())
+            .map(|(a, b)| Self::byte_delta(*a, *b)) // 0 and 1 are coordinates; 2 is the pixel
             .sum()
     }
 
