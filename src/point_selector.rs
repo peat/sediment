@@ -72,8 +72,8 @@ mod tests {
 
         let mut dps = DistancePointSelector::new(&reference, &current, limit);
 
-        let first = dps.points.first().unwrap().clone();
-        let last = dps.points.last().unwrap().clone();
+        let first = *dps.points.first().unwrap();
+        let last = *dps.points.last().unwrap();
 
         // should be reverse sorted; last() gets popped off the stack first with next()
         assert!(first.0 < last.0);
