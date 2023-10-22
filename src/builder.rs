@@ -87,7 +87,7 @@ impl Builder {
 
             // examine the success rate to determine if we need to adjust our radius
             if radius_success_rate.is_below(self.config.radius_shrink_threshold)
-                || (self.stats.radius_attempts > self.config.radius_attempt_limit)
+                && (self.stats.radius_attempts > self.config.radius_attempt_limit)
             {
                 // report stats
                 self.stats.radius_success_rate = radius_success_rate.rate().unwrap_or_default();
