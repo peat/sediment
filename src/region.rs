@@ -49,4 +49,12 @@ impl Region {
     pub fn real_height(&self) -> u32 {
         (self.max_y as u32) - self.real_origin_y()
     }
+
+    pub fn real_center_x(&self) -> u32 {
+        self.center_x - self.real_origin_x()
+    }
+
+    pub fn real_center_y(&self) -> u32 {
+        self.center_y - self.real_origin_y()
+    }
 }

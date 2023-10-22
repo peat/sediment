@@ -49,30 +49,12 @@ impl Canvas {
         let width = region.real_width();
         let height = region.real_height();
 
+        // get the cropped image section
         let img = self.img.crop_imm(x, y, width, height);
-        let mut center_x = region.radius as i32;
-        let mut center_y = region.radius as i32;
-
-        // re-determine the center point; adjust center_x and center_y for overhang
-        if region.max_x > self.img.width() as i32 {
-            center_x += region.max_x - self.img.width() as i32;
-        }
-
-        if region.min_x < 0 {
-            center_x += region.min_x;
-        }
-
-        if region.max_y > self.img.height() as i32 {
-            center_y += region.max_y - self.img.height() as i32;
-        }
-
-        if region.min_y < 0 {
-            center_y += region.min_y;
-        }
 
         Self {
-            center_x,
-            center_y,
+            center_x: region.real_center_x() as i32,
+            center_y: region.real_center_y() as i32,
             img,
         }
     }
