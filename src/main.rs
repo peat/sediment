@@ -13,6 +13,7 @@ mod render;
 pub use canvas::Canvas;
 pub use circle::Circle;
 pub use region::Region;
+pub use render::Render;
 
 use builder::{Builder, BuilderUpdate, Stats};
 use std::sync::mpsc::channel;

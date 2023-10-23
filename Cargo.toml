@@ -18,3 +18,5 @@ rand = "0"
 clap = { version = "4", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 csv = "1"
+rayon = "1"
+indicatif = "0"

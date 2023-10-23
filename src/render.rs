@@ -58,11 +58,8 @@ impl Render {
     }
 
     pub fn run(&self) {
-        println!("Opened {} circles", self.circles.len());
-        println!("Pruning circles...");
         let optimizer = Optimizer::new(self.circles.clone());
-        let pruned_circles = optimizer.prune();
-        println!("Pruned to {} circles", pruned_circles.len());
+        let pruned_circles = optimizer.parallel_prune();
 
         if let Some(path) = &self.config.svg {
             Self::svg_to_file(&pruned_circles, path);

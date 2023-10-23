@@ -3,8 +3,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 
 use crate::builder::{Builder, BuilderCommand, BuilderUpdate, Stats};
-use crate::BuildConfig;
-use crate::Canvas;
+use crate::{BuildConfig, Canvas};
 use eframe::{egui, epaint::ColorImage, App, CreationContext, NativeOptions};
 use image::DynamicImage;
 
