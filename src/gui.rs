@@ -1,8 +1,8 @@
 use std::sync::mpsc::channel;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 use std::thread;
 
-use crate::builder::{Builder, BuilderUpdate, Stats};
+use crate::builder::{Builder, BuilderCommand, BuilderUpdate, Stats};
 use crate::BuildConfig;
 use crate::Canvas;
 use eframe::{egui, epaint::ColorImage, App, CreationContext, NativeOptions};
@@ -12,14 +12,15 @@ static PREVIEW_TEXTURE_ID: &str = "preview-image";
 static REFERENCE_TEXTURE_ID: &str = "reference-image";
 
 pub fn run(build_config: BuildConfig) {
-    let (builder_tx, builder_update_rx) = channel();
+    let (builder_update_tx, builder_update_rx) = channel();
+    let (builder_command_tx, builder_command_rx) = channel();
 
     let builder_config = build_config.clone();
     let gui_config = build_config.clone();
 
     thread::spawn(move || {
-        let mut builder = Builder::new(builder_tx, builder_config);
-        builder.run();
+        let mut builder = Builder::new(builder_update_tx, builder_config);
+        builder.interactive(builder_command_rx);
     });
 
     let options = NativeOptions {
@@ -30,12 +31,20 @@ pub fn run(build_config: BuildConfig) {
     let _ = eframe::run_native(
         "Sediment",
         options,
-        Box::new(|cc| Box::new(SedimentApp::new(cc, gui_config, builder_update_rx))),
+        Box::new(|cc| {
+            Box::new(SedimentApp::new(
+                cc,
+                gui_config,
+                builder_update_rx,
+                builder_command_tx,
+            ))
+        }),
     );
 }
 
 pub struct SedimentApp {
-    rx: Receiver<BuilderUpdate>,
+    builder_update_rx: Receiver<BuilderUpdate>,
+    builder_command_tx: Sender<BuilderCommand>,
     reference_texture: Option<egui::TextureHandle>,
     preview_texture: Option<egui::TextureHandle>,
     preview_image: ColorImage,
@@ -47,10 +56,12 @@ impl SedimentApp {
     pub fn new(
         _creation_context: &CreationContext<'_>,
         config: BuildConfig,
-        rx: Receiver<BuilderUpdate>,
+        builder_update_rx: Receiver<BuilderUpdate>,
+        builder_command_tx: Sender<BuilderCommand>,
     ) -> Self {
         Self {
-            rx,
+            builder_update_rx,
+            builder_command_tx,
             reference_texture: None,
             preview_image: egui::ColorImage::example(),
             preview_texture: None,
@@ -130,11 +141,16 @@ impl App for SedimentApp {
         ctx.request_repaint(); // continuous repainting
 
         if ctx.input(|i| i.key_released(egui::Key::Escape)) {
+            self.builder_command_tx.send(BuilderCommand::Quit).unwrap();
             std::process::exit(0);
         }
 
+        if ctx.input(|i| i.key_released(egui::Key::R)) {
+            self.builder_command_tx.send(BuilderCommand::Start).unwrap();
+        }
+
         // handle any messages that may have come in from the builder
-        if let Ok(input) = self.rx.try_recv() {
+        if let Ok(input) = self.builder_update_rx.try_recv() {
             match input {
                 BuilderUpdate::Preview(new_preview) => self.update_preview(new_preview),
                 BuilderUpdate::Stats(s) => self.update_status(s),

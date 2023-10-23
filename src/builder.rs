@@ -1,4 +1,4 @@
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, Instant};
 
 use crate::{
@@ -9,6 +9,11 @@ use image::{GenericImage, Rgba};
 pub enum BuilderUpdate {
     Preview(image::DynamicImage),
     Stats(Stats),
+}
+
+pub enum BuilderCommand {
+    Start,
+    Quit,
 }
 
 #[derive(Debug, Default, Copy, Clone)]
@@ -80,6 +85,19 @@ impl Builder {
             int_step = 1;
         }
         int_step
+    }
+
+    pub fn interactive(&mut self, rx: Receiver<BuilderCommand>) {
+        loop {
+            match rx.recv().unwrap() {
+                BuilderCommand::Start => {
+                    self.run();
+                }
+                BuilderCommand::Quit => {
+                    return;
+                }
+            }
+        }
     }
 
     pub fn run(&mut self) {
