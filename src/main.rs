@@ -98,29 +98,34 @@ fn main() {
     match config.command {
         Command::Build(build_config) => {
             print_build_config(&build_config);
-            let (builder_tx, main_window_rx) = channel();
-            let use_gui = build_config.gui;
 
-            thread::spawn(move || {
-                let mut builder = Builder::new(builder_tx, build_config);
-                builder.run();
-            });
-
-            if use_gui {
+            if build_config.gui {
                 // UI run loop; doesn't exit.
-                gui::run(main_window_rx);
+                gui::run(build_config);
             } else {
-                loop {
-                    match main_window_rx.recv() {
-                        Ok(BuilderUpdate::Stats(stats)) => print_stats(&stats),
-                        Ok(_) => continue,
-                        Err(_) => return,
-                    }
-                }
+                headless_run(build_config);
             }
         }
+
         Command::Render(render_config) => {
             crate::render::Render::new(render_config).run();
+        }
+    }
+}
+
+fn headless_run(config: BuildConfig) {
+    let (builder_tx, builder_update_rx) = channel();
+
+    thread::spawn(move || {
+        let mut builder = Builder::new(builder_tx, config);
+        builder.run();
+    });
+
+    loop {
+        match builder_update_rx.recv() {
+            Ok(BuilderUpdate::Stats(stats)) => print_stats(&stats),
+            Ok(_) => continue,
+            Err(_) => return,
         }
     }
 }

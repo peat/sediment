@@ -1,12 +1,22 @@
+use std::sync::mpsc::channel;
 use std::sync::mpsc::Receiver;
+use std::thread;
 
-use crate::builder::{BuilderUpdate, Stats};
+use crate::builder::{Builder, BuilderUpdate, Stats};
+use crate::BuildConfig;
 use eframe::{egui, epaint::ColorImage, App, CreationContext, NativeOptions};
 use image::DynamicImage;
 
 static PREVIEW_TEXTURE_ID: &str = "preview-image";
 
-pub fn run(rx: Receiver<BuilderUpdate>) {
+pub fn run(build_config: BuildConfig) {
+    let (builder_tx, builder_update_rx) = channel();
+
+    thread::spawn(move || {
+        let mut builder = Builder::new(builder_tx, build_config);
+        builder.run();
+    });
+
     let options = NativeOptions {
         follow_system_theme: true,
         ..Default::default()
@@ -15,18 +25,18 @@ pub fn run(rx: Receiver<BuilderUpdate>) {
     let _ = eframe::run_native(
         "Sediment",
         options,
-        Box::new(|cc| Box::new(MainWindow::new(cc, rx))),
+        Box::new(|cc| Box::new(SedimentApp::new(cc, builder_update_rx))),
     );
 }
 
-pub struct MainWindow {
+pub struct SedimentApp {
     rx: Receiver<BuilderUpdate>,
     preview_texture: Option<egui::TextureHandle>,
     preview_image: ColorImage,
     stats_line: String,
 }
 
-impl MainWindow {
+impl SedimentApp {
     pub fn new(_creation_context: &CreationContext<'_>, rx: Receiver<BuilderUpdate>) -> Self {
         Self {
             rx,
@@ -80,7 +90,7 @@ impl MainWindow {
     }
 }
 
-impl App for MainWindow {
+impl App for SedimentApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         ctx.request_repaint(); // continuous repainting
 
